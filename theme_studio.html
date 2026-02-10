@@ -1,0 +1,378 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="utf-8">
+    <title>VISUALIZER: STUDIO</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@300;500;900&display=swap');
+
+        body { margin: 0; overflow: hidden; background: #1a1a1a; font-family: 'Montserrat', sans-serif; cursor: pointer; }
+        
+        .back-btn { 
+            position: absolute; top: 20px; right: 20px; z-index: 100; 
+            padding: 10px 20px; background: rgba(255, 255, 255, 0.1); 
+            border: 1px solid rgba(255,255,255,0.5); color: #fff; 
+            border-radius: 20px; cursor: pointer; transition: 0.3s;
+            text-decoration: none; font-size: 14px; font-weight: bold;
+        }
+        .back-btn:hover { background: #fff; color: #000; }
+
+        #result-ui { position: absolute; width: 100%; height: 100%; z-index: 50; pointer-events: none; opacity: 0; transition: opacity 1s; }
+        .vibe-badge { position: absolute; bottom: 40px; left: 40px; color: #fff; font-size: 3em; font-weight: 900; mix-blend-mode: screen; text-shadow: 0 0 20px rgba(255,255,255,0.5); }
+        .vibe-sub { font-size: 14px; display: block; margin-top: 5px; opacity: 0.8; letter-spacing: 2px; }
+        
+        .music-stats { position: absolute; bottom: 130px; left: 45px; text-align: left; font-family: 'Courier New', monospace; }
+        .stat-row { margin-bottom: 6px; color: rgba(255, 255, 255, 0.6); font-size: 12px; letter-spacing: 1px; }
+        .stat-value { color: #00dbde; font-weight: bold; font-size: 14px; margin-left: 10px; }
+
+        #start-overlay {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.85); z-index: 9999;
+            display: flex; flex-direction: column;
+            align-items: center; justify-content: center;
+            cursor: pointer; transition: opacity 0.5s;
+        }
+        .start-title { color: #fff; font-size: 40px; font-weight: 900; letter-spacing: 5px; margin-bottom: 10px; }
+        .start-sub { color: #00dbde; font-size: 14px; letter-spacing: 2px; animation: blink 1.5s infinite; margin-bottom: 30px; }
+        @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
+
+        .option-container { display: flex; align-items: center; gap: 10px; pointer-events: auto; }
+        .option-label { color: #888; font-size: 12px; letter-spacing: 1px; transition: 0.3s; }
+        input[type="checkbox"] { accent-color: #00dbde; cursor: pointer; width: 16px; height: 16px; }
+        input[type="checkbox"]:checked + .option-label { color: #00dbde; font-weight: bold; }
+
+        #audio-player { display: none; }
+    </style>
+</head>
+<body>
+    <a href="index.html" class="back-btn">🏠 HOME</a>
+
+    <div id="start-overlay" onclick="startExperience()">
+        <div class="start-title">MUSIC STUDIO</div>
+        <div class="start-sub">CLICK TO START</div>
+
+        <div class="option-container" onclick="event.stopPropagation()">
+            <input type="checkbox" id="show-info-check">
+            <label for="show-info-check" class="option-label">SHOW MUSIC INFO</label>
+        </div>
+    </div>
+
+    <video id="bg-video" loop muted playsinline style="display:none;"></video>
+
+    <audio id="audio-player" src="./music_project/test.mp3" loop></audio>
+
+    <div id="result-ui">
+        <div id="music-stats-container" class="music-stats">
+            <div class="stat-row">TEMPO <span class="stat-value">LOADING...</span></div>
+            <div class="stat-row">ENERGY <span class="stat-value">LOADING...</span></div>
+            <div class="stat-row">THEME <span class="stat-value">LOADING...</span></div>
+        </div>
+        <div id="vibe-display" class="vibe-badge"></div>
+    </div>
+
+    <script>
+        // ============================================================
+        // ★ 0. 초기 설정
+        // ============================================================
+        const EXCLUDED_IDS = [ 
+            'midi_controller', 'Mixing_Desk', 'speaker1', 'speaker2', 
+            'energy_drink1', 'energy_drink2', 'energy_drink3', 
+            'monitor1', 'gameboy', 'nintendo', 'camara', 'whiteboard', 'Headphone' 
+        ];
+
+        const audioPlayer = document.getElementById('audio-player');
+        const bgVideo = document.getElementById('bg-video');
+        const startOverlay = document.getElementById('start-overlay');
+        const resultUi = document.getElementById('result-ui');
+        const infoCheckbox = document.getElementById('show-info-check');
+        
+        let isPlaying = false;
+
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x1a1a1a);
+        const camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.01, 1000);
+        
+        // 조명
+        const initialColor = new THREE.Color("#00dbde");
+        const dirLight = new THREE.DirectionalLight(initialColor, 1.0);
+        dirLight.position.set(5, 8, 5);
+        dirLight.castShadow = true; 
+        dirLight.shadow.mapSize.width = 2048; 
+        dirLight.shadow.mapSize.height = 2048;
+        scene.add(dirLight);
+
+        const ambientLight = new THREE.AmbientLight(initialColor, 0.4); 
+        scene.add(ambientLight);
+
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.shadowMap.enabled = true; 
+        renderer.shadowMap.type = THREE.PCFSoftShadowMap; 
+        renderer.outputEncoding = THREE.sRGBEncoding; 
+        renderer.toneMapping = THREE.ACESFilmicToneMapping; 
+        renderer.toneMappingExposure = 1.0; 
+        document.body.appendChild(renderer.domElement);
+
+        const controls = new THREE.OrbitControls(camera, renderer.domElement);
+        controls.enabled = false; 
+
+        const floorMat = new THREE.MeshStandardMaterial({ color: 0xA0522D, roughness: 0.7, metalness: 0.1 });
+        const floor = new THREE.Mesh(new THREE.PlaneGeometry(20, 20), floorMat);
+        floor.rotation.x = -Math.PI/2; floor.receiveShadow = true; scene.add(floor);
+
+        // ============================================================
+        // ★ 1. 시작 로직
+        // ============================================================
+        function startExperience() {
+            startOverlay.style.opacity = '0';
+            setTimeout(() => { startOverlay.style.display = 'none'; }, 500);
+            
+            if (infoCheckbox.checked) resultUi.style.opacity = '1';
+            else resultUi.style.opacity = '0';
+
+            audioPlayer.play().then(() => {
+                console.log("Music Playing...");
+                isPlaying = true;
+            }).catch(e => {
+                console.log("Playback error:", e);
+                isPlaying = true;
+            });
+
+            if (bgVideo.src) {
+                bgVideo.play().catch(e => console.log("Video autoplay blocked:", e));
+            }
+        }
+
+        // ============================================================
+        // ★ 2. 모니터 화면 (검정색 배경)
+        // ============================================================
+        const vizCanvas = document.createElement('canvas');
+        vizCanvas.width = 1024; vizCanvas.height = 512;
+        const ctx = vizCanvas.getContext('2d');
+        const vizTexture = new THREE.CanvasTexture(vizCanvas);
+
+        function drawScreen() {
+            // ★ 배경을 완전 검정색으로 설정
+            ctx.fillStyle = '#000000'; 
+            ctx.fillRect(0, 0, 1024, 512);
+            
+            ctx.fillStyle = '#ffffff';
+            ctx.font = 'bold 40px Courier New'; 
+            ctx.textAlign = 'center';
+            ctx.fillText("MUSIC STUDIO", 512, 240);
+            
+            ctx.font = '20px Courier New'; 
+            ctx.fillStyle = '#00dbde';
+            ctx.fillText("NOW PLAYING", 512, 290);
+            
+            vizTexture.needsUpdate = true;
+        }
+        drawScreen();
+
+        // ============================================================
+        // ★ 3. 데이터 로드
+        // ============================================================
+        let visualData = JSON.parse(localStorage.getItem('visualData'));
+        if (!visualData) {
+            visualData = {
+                emotion_rankings: [{ mood: "Default", confidence: "0.0" }],
+                analysis: { tempo: 120, intensity: 0.5 },
+                palette: { main: "#00dbde", sub: "#ff00de", accent: "#ffffff" }
+            };
+        }
+
+        let colorPalette = [];
+        if (visualData.palette) {
+            if (visualData.palette.main) colorPalette.push(new THREE.Color(visualData.palette.main));
+            if (visualData.palette.sub) colorPalette.push(new THREE.Color(visualData.palette.sub));
+            if (visualData.palette.accent) colorPalette.push(new THREE.Color(visualData.palette.accent));
+        }
+        if (colorPalette.length < 2) {
+            if (colorPalette.length === 0) colorPalette.push(new THREE.Color("#00dbde"));
+            colorPalette.push(colorPalette[0].clone().offsetHSL(0.2, 0, 0)); 
+        }
+
+        const topMood = (visualData.emotion_rankings && visualData.emotion_rankings[0]) ? visualData.emotion_rankings[0] : { mood: "Unknown", confidence: 0 };
+        document.getElementById('vibe-display').innerHTML = `${topMood.mood}<span class="vibe-sub">CONFIDENCE: ${topMood.confidence}</span>`; 
+        
+        const tColor = visualData.palette.main || '#FFF';
+        document.getElementById('music-stats-container').innerHTML = `
+            <div class="stat-row">TEMPO <span class="stat-value">${visualData.analysis.tempo || 'N/A'} BPM</span></div>
+            <div class="stat-row">ENERGY <span class="stat-value">${(visualData.analysis.intensity * 100).toFixed(0)} %</span></div>
+            <div class="stat-row">THEME <span class="stat-value" style="color:${tColor}">${tColor}</span></div>
+        `;
+
+        // ============================================================
+        // ★ 4. 3D 에셋 배치
+        // ============================================================
+        const THEME_CONFIG = {
+          "desk": { "pos": { "x": 5.77, "y": 0, "z": -8.31 }, "rotDeg": 270, "scale": 2.6, "color": "#303030" },
+          "Mixing_Desk": { "pos": { "x": 5.1, "y": 2.7, "z": -7.9 }, "rotDeg": 180, "scale": 0.6, "color": "#eeeeee" },
+          "standing_desk": { "pos": { "x": 2, "y": 1, "z": -7.6 }, "rotDeg": 90, "scale": 2.6, "color": "#303030" },
+          "standing_desk2": { "pos": { "x": 2, "y": 1, "z": -4.62 }, "rotDeg": 90, "scale": 2.6, "color": "#303030" },
+          "speaker1": { "pos": { "x": 7.45, "y": 2.45, "z": -8.65 }, "rotDeg": 323, "scale": 1, "color": "#eeeeee" },
+          "speaker2": { "pos": { "x": 2.09, "y": 2.45, "z": -8.65 }, "rotDeg": 36, "scale": 1, "color": "#eeeeee" },
+          "gameboy": { "pos": { "x": 7.04, "y": 2.78, "z": -7.8 }, "rotDeg": 220, "scale": 0.5, "color": "#eeeeee" },
+          "Headphone": { "pos": { "x": 7.12, "y": 2.53, "z": -6.43 }, "rotDeg": 281, "scale": 2, "color": "#eeeeee" },
+          "wall2": { "pos": { "x": 8.5, "y": 0, "z": -2.5 }, "rotDeg": 0, "scale": 3, "color": "#ccad7f" },
+          "wall1": { "pos": { "x": 8.5, "y": 0, "z": -8.5 }, "rotDeg": 0, "scale": 3, "color": "#ccad7f" },
+          "wall4": { "pos": { "x": 10.13, "y": 0, "z": -9.85 }, "rotDeg": 90, "scale": 3, "color": "#ccad7f" },
+          "wall3": { "pos": { "x": 8.5, "y": 0, "z": -5.5 }, "rotDeg": 0, "scale": 3, "color": "#ccad7f" },
+          "midi_controller": { "pos": { "x": 1.97, "y": 2.46, "z": -5.92 }, "rotDeg": 90, "scale": 0.03, "color": "#eeeeee" },
+          "wall_low": { "pos": { "x": 5.77, "y": -1.98, "z": -9.85 }, "rotDeg": 90, "scale": 3, "color": "#ccad7f" },
+          "wall5": { "pos": { "x": -0.8, "y": 0, "z": -9.85 }, "rotDeg": 90, "scale": 3, "color": "#ccad7f" },
+          "wall_low3": { "pos": { "x": 5.77, "y": 6.24, "z": -9.85 }, "rotDeg": 90, "scale": 3, "color": "#ccad7f" },
+          "monitor1": { "pos": { "x": 4.9, "y": 2.45, "z": -8.98 }, "rotDeg": 0, "scale": 5, "color": "#eeeeee" },
+          "nintendo": { "pos": { "x": 7.81, "y": 2.45, "z": -7.45 }, "rotDeg": 45, "scale": 0.01, "color": "#eeeeee" },
+          "camara": { "pos": { "x": 2.08, "y": 4.14, "z": -8.65 }, "rotDeg": 9, "scale": 0.13, "color": "#eeeeee" },
+          "whiteboard": { "pos": { "x": 8.36, "y": 3.72, "z": -7.3 }, "rotDeg": 180, "scale": 1.08, "color": "#eeeeee" },
+          "wall_low2": { "pos": { "x": 0, "y": -1.98, "z": -9.85 }, "rotDeg": 90, "scale": 3, "color": "#ccad7f" },
+          "wall_window": { "pos": { "x": 4.65, "y": 1.55, "z": -9.8 }, "rotDeg": 90, "scale": 2, "color": "#eeeeee" },
+          "wall_low4": { "pos": { "x": 0.07, "y": 6.24, "z": -9.85 }, "rotDeg": 270, "scale": 3, "color": "#ccad7f" },
+          "energy_drink2": { "pos": { "x": 7.5, "y": 4.55, "z": -8.9 }, "rotDeg": 217, "scale": 0.2, "color": "#eeeeee" },
+          "energy_drink1": { "pos": { "x": 7.5, "y": 4.55, "z": -8.4 }, "rotDeg": 217, "scale": 0.2, "color": "#eeeeee" },
+          "energy_drink3": { "pos": { "x": 7.1, "y": 4.55, "z": -8.65 }, "rotDeg": 217, "scale": 0.2, "color": "#eeeeee" },
+          "backdrop": { "pos": { "x": 3.96, "y": 4.5, "z": -19.56 }, "scale": { "x": 16, "y": 9 }, "imageData": null, "videoData": null },
+          "camera": { "pos": { "x": 4.811322916769001, "y": 4.1003138237776495, "z": -3.6476561144672974 }, "target": { "x": 5.723421122771882, "y": 3.2003816434043144, "z": -10.970304568444874 } },
+          "lights": { "sun": { "x": 5, "y": 8, "z": 5, "intensity": 1.5 }, "ambient": { "intensity": 0.8 } }
+        };
+
+        const assetList = [
+            { id: 'wall1',  file: './Household Props 001-glb/Wall Half.glb' },
+            { id: 'wall2',  file: './Household Props 001-glb/Wall Half.glb' },
+            { id: 'wall3',  file: './Household Props 001-glb/Wall Half.glb' },
+            { id: 'wall4',  file: './Household Props 001-glb/Wall Half.glb' },
+            { id: 'wall5',  file: './Household Props 001-glb/Wall Half.glb' },
+            { id: 'wall_window',  file: './Household Props 001-glb/Wall Window Wide.glb' },
+            { id: 'wall_low',  file: './Household Props 001-glb/Wall Low.glb' },
+            { id: 'wall_low2',  file: './Household Props 001-glb/Wall Low.glb' },
+            { id: 'wall_low3',  file: './Household Props 001-glb/Wall Low.glb' },
+            { id: 'wall_low4',  file: './Household Props 001-glb/Wall Low.glb' },
+            { id: 'desk', file: './Household Props 001-glb/Adjustable Desk.glb' },
+            { id: 'standing_desk', file: './Household Props 001-glb/Standing Desk.glb' },
+            { id: 'standing_desk2', file: './Household Props 001-glb/Standing Desk.glb' },
+            { id: 'midi_controller', file: './Household Props 001-glb/MIDI Controller.glb' },
+            { id: 'Mixing_Desk', file: './Household Props 001-glb/Digital Audio Mixing Desk.glb' },
+            { id: 'speaker1', file: './Household Props 001-glb/Speaker.glb' },
+            { id: 'speaker2', file: './Household Props 001-glb/Speaker.glb' },
+            { id: 'energy_drink1', file: './Household Props 001-glb/Poly Energy.glb' },
+            { id: 'energy_drink2', file: './Household Props 001-glb/Poly Energy.glb' },
+            { id: 'energy_drink3', file: './Household Props 001-glb/Poly Energy.glb' },
+            { id: 'monitor1', file: './Household Props 001-glb/Monitor.glb' }, 
+            { id: 'gameboy', file: './Household Props 001-glb/Gameboy.glb' },
+            { id: 'nintendo', file: './Household Props 001-glb/Handheld videogame console.glb' },
+            { id: 'camara', file: './Household Props 001-glb/Camera.glb' },
+            { id: 'whiteboard', file: './Household Props 001-glb/Whiteboard.glb' },
+            { id: 'Headphone', file: './Household Props 001-glb/Headphones And iPod.glb' }
+        ];
+
+        const camConfig = THEME_CONFIG.camera;
+        camera.position.set(camConfig.pos.x, camConfig.pos.y, camConfig.pos.z);
+        controls.target.set(camConfig.target.x, camConfig.target.y, camConfig.target.z);
+        controls.update();
+
+        const loader = new THREE.GLTFLoader();
+        assetList.forEach((item) => {
+            if (!THEME_CONFIG[item.id]) return;
+            loader.load(item.file, (gltf) => {
+                const model = gltf.scene;
+                const config = THEME_CONFIG[item.id];
+                model.position.set(config.pos.x, config.pos.y, config.pos.z);
+                model.rotation.y = THREE.MathUtils.degToRad(config.rotDeg);
+                model.scale.set(config.scale, config.scale, config.scale);
+
+                model.traverse(o => {
+                    if (o.isMesh) {
+                        o.castShadow = true; o.receiveShadow = true;
+                        
+                        if (item.id === 'monitor1') {
+                            o.material = new THREE.MeshBasicMaterial({ map: vizTexture, toneMapped: false });
+                            return; 
+                        }
+                        if (item.id === 'wall_window') {
+                            const isGlass = o.material.name.toLowerCase().includes('glass') || o.material.name.toLowerCase().includes('window');
+                            if (isGlass) {
+                                o.material.transparent = true; o.material.opacity = 0.3;
+                                o.material.color.set(0xffffff);
+                            } else { o.material.color.set(config.color || "#eeeeee"); }
+                            return;
+                        }
+                        if (config.color && !EXCLUDED_IDS.includes(item.id)) {
+                            o.material = new THREE.MeshStandardMaterial({ color: config.color, roughness: 0.8, metalness: 0.0 });
+                        }
+                    }
+                });
+                scene.add(model);
+            });
+        });
+
+        // ============================================================
+        // ★ 배경 로드 (비디오)
+        // ============================================================
+        const analyzedMood = visualData.emotion_rankings[0].mood || "Default";
+        
+        if (THEME_CONFIG.backdrop) {
+            const bgConfig = THEME_CONFIG.backdrop;
+            const bgGeo = new THREE.PlaneGeometry(1, 1);
+            const bgMat = new THREE.MeshBasicMaterial({ color: 0xffffff, side: THREE.DoubleSide });
+            const backdrop = new THREE.Mesh(bgGeo, bgMat);
+            backdrop.position.set(bgConfig.pos.x, bgConfig.pos.y, bgConfig.pos.z);
+            backdrop.scale.set(bgConfig.scale.x, bgConfig.scale.y, 1);
+            
+            const BACKGROUND_MAP = {
+                "Energetic": "./wallpaper/Night.mp4",
+                "Calm": "./wallpaper/Sunset.mp4",
+                "Sad": "./wallpaper/Rainy.mp4",
+                "Happy": "./wallpaper/Sunny.mp4",
+                "Default": "./wallpaper/Night.mp4"
+            };
+            
+            const targetUrl = BACKGROUND_MAP[analyzedMood] || BACKGROUND_MAP["Default"];
+            bgVideo.src = targetUrl;
+            
+            const videoTexture = new THREE.VideoTexture(bgVideo);
+            videoTexture.encoding = THREE.sRGBEncoding;
+            
+            backdrop.material.map = videoTexture;
+            backdrop.material.needsUpdate = true;
+            
+            scene.add(backdrop);
+        }
+
+        // ============================================================
+        // ★ 5. 애니메이션 루프 (조명 색상 변화 유지)
+        // ============================================================
+        const clock = new THREE.Clock();
+        const cycleSpeed = 0.2; 
+
+        function animate() {
+            requestAnimationFrame(animate);
+            const time = clock.getElapsedTime();
+
+            // 조명 그라데이션
+            const cycleIndex = Math.floor(time * cycleSpeed) % colorPalette.length;
+            const nextCycleIndex = (cycleIndex + 1) % colorPalette.length;
+            const alpha = (time * cycleSpeed) % 1; 
+
+            const currentColor = new THREE.Color();
+            currentColor.copy(colorPalette[cycleIndex]).lerp(colorPalette[nextCycleIndex], alpha);
+
+            dirLight.color.copy(currentColor);
+            ambientLight.color.copy(currentColor);
+
+            renderer.render(scene, camera);
+        }
+        animate();
+
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+    </script>
+</body>
+</html>

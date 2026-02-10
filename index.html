@@ -1,0 +1,365 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="utf-8">
+    <title>Beat Visual: VIBE SELECTOR</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@300;500;800&family=Noto+Sans+KR:wght@300;500;700&display=swap');
+
+        /* [기본 레이아웃] */
+        body { background-color: #000; margin: 0; padding: 0; font-family: 'Montserrat', 'Noto Sans KR', sans-serif; width: 100%; overflow-x: hidden; overflow-y: auto; }
+        section { width: 100%; min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; position: relative; box-sizing: border-box; padding: 60px 20px; }
+
+        /* SECTION 1: 메인 업로더 */
+        #main-section { background: radial-gradient(circle at center, #1a1a1a 0%, #000 100%); z-index: 10; }
+        .container { background-color: rgba(0, 0, 0, 0.85); backdrop-filter: blur(12px); padding: 40px; border-radius: 20px; text-align: center; width: 480px; max-width: 90%; border: 1px solid rgba(255, 255, 255, 0.15); z-index: 100; position: relative; box-shadow: 0 0 60px rgba(0,0,0,0.8); }
+        h1 { margin: 0 0 10px 0; font-size: 32px; color: #fff; font-weight: 800; letter-spacing: 3px; text-shadow: 0 0 15px rgba(255, 255, 255, 0.5); }
+        p { color: #888; margin-bottom: 30px; font-size: 13px; text-transform: uppercase; letter-spacing: 2px; }
+        
+        input[type="file"] { width: 100%; padding: 15px; margin-bottom: 25px; background: #1a1a1a; border: 1px solid #333; border-radius: 10px; color: #ccc; cursor: pointer; box-sizing: border-box; font-size: 14px; text-align: center; }
+        
+        .theme-label { text-align: left; color: #fff; font-size: 12px; font-weight: bold; margin-bottom: 12px; display: block; }
+        .theme-selector { display: flex; gap: 10px; margin-bottom: 30px; }
+        .theme-option { flex: 1; position: relative; }
+        .theme-option input { position: absolute; opacity: 0; cursor: pointer; }
+        
+        .theme-card { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 80px; background: #222; border: 1px solid #444; border-radius: 10px; cursor: pointer; transition: 0.3s; color: #666; }
+        .theme-icon { font-size: 24px; margin-bottom: 5px; }
+        .theme-name { font-size: 10px; font-weight: bold; }
+        
+        /* 라디오 버튼 선택 시 스타일 */
+        .theme-option input:checked + .theme-card { background: linear-gradient(135deg, #222, #333); border-color: #00dbde; color: #fff; box-shadow: 0 0 20px rgba(0, 219, 222, 0.3); }
+        
+        /* 1. Sunset (Pink) */
+        .theme-option:nth-child(1) input:checked + .theme-card { border-color: #ff00de; box-shadow: 0 0 20px rgba(255, 0, 222, 0.4); }
+        /* 2. Studio (Blue) */
+        .theme-option:nth-child(2) input:checked + .theme-card { border-color: #00dbde; box-shadow: 0 0 20px rgba(0, 219, 222, 0.4); }
+        /* 3. Video (Green) */
+        .theme-option:nth-child(3) input:checked + .theme-card { border-color: #00ff00; box-shadow: 0 0 20px rgba(0, 255, 0, 0.4); }
+
+        /* [추가됨] 서브 스타일 섹션 (비디오 스타일 선택) */
+        #sub-style-section { display: none; margin-bottom: 30px; animation: fadeIn 0.5s; }
+        .sub-label { text-align: left; color: #00ff00; font-size: 11px; font-weight: bold; margin-bottom: 8px; display: block; letter-spacing: 1px; }
+        
+        /* 서브 카드 스타일 (Green Theme) */
+        .sub-option input:checked + .theme-card { border-color: #00ff00; box-shadow: 0 0 15px rgba(0, 255, 0, 0.3); background: linear-gradient(135deg, #1a2e1a, #000); color: #fff; }
+        
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(-10px); } to { opacity: 1; transform: translateY(0); } }
+
+        .submit-btn { background: #fff; color: #000; border: none; border-radius: 10px; padding: 16px; width: 100%; font-weight: 800; font-size: 16px; text-transform: uppercase; cursor: pointer; transition: 0.2s; }
+        .submit-btn:hover { transform: translateY(-3px); box-shadow: 0 8px 25px rgba(255, 255, 255, 0.3); }
+
+        .scroll-hint { position: absolute; bottom: 30px; left: 50%; transform: translateX(-50%); color: rgba(255,255,255,0.3); font-size: 12px; letter-spacing: 3px; animation: bounce 2s infinite; text-align: center; cursor: pointer; }
+        .scroll-hint span { display: block; font-size: 20px; margin-top: 10px; }
+        @keyframes bounce { 0%, 20%, 50%, 80%, 100% {transform: translateX(-50%) translateY(0);} 40% {transform: translateX(-50%) translateY(-10px);} 60% {transform: translateX(-50%) translateY(-5px);} }
+
+        /* SECTION 2: 테마 소개 */
+        #info-section { background-color: #080808; }
+        .info-title { font-size: 32px; color: #fff; font-weight: 800; margin-bottom: 60px; border-bottom: 3px solid #00dbde; padding-bottom: 20px; letter-spacing: 2px; text-align: center; }
+        .info-title span { color: #00dbde; }
+        .cards-wrapper { display: flex; gap: 30px; max-width: 1400px; width: 90%; justify-content: center; flex-wrap: wrap; }
+        
+        .info-card { flex: 1; min-width: 300px; max-width: 400px; background: rgba(255, 255, 255, 0.03); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 20px; overflow: hidden; transition: 0.4s; display: flex; flex-direction: column; }
+        .info-card:hover { transform: translateY(-10px); background: rgba(255, 255, 255, 0.05); }
+        
+        .card-sunset:hover { border-color: #ff00de; box-shadow: 0 10px 30px rgba(255, 0, 222, 0.2); }
+        .card-studio:hover { border-color: #00dbde; box-shadow: 0 10px 30px rgba(0, 219, 222, 0.2); } 
+        .card-video:hover { border-color: #00ff00; box-shadow: 0 10px 30px rgba(0, 255, 0, 0.2); }
+
+        .card-image { height: 220px; width: 100%; position: relative; overflow: hidden; }
+        .static-bg { width: 100%; height: 100%; position: absolute; top: 0; left: 0; z-index: 1; }
+        
+        .img-sunset { background: linear-gradient(to bottom, #2b002b, #ff00de); } 
+        .img-studio { background: linear-gradient(to bottom, #0f172a, #00dbde); } 
+        .img-video { background: linear-gradient(to bottom, #001a00, #00ff00); }
+        
+        .gif-preview { width: 100%; height: 100%; object-fit: cover; position: absolute; top: 0; left: 0; z-index: 2; opacity: 1; }
+        
+        .card-content { padding: 30px; text-align: left; flex-grow: 1; display: flex; flex-direction: column; }
+        .card-title { font-size: 22px; font-weight: 800; color: #fff; margin-bottom: 15px; letter-spacing: 1px; }
+        .card-desc { font-size: 14px; color: #ccc; line-height: 1.6; margin-bottom: 25px; flex-grow: 1; word-break: keep-all; }
+        .hashtags { font-size: 12px; font-weight: 700; opacity: 0.8; margin-top: auto; letter-spacing: 1px; }
+        
+        .hash-sunset { color: #ff00de; } 
+        .hash-studio { color: #00dbde; } 
+        .hash-video { color: #00ff00; }
+
+        /* SECTION 3: 팀원 소개 */
+        #team-section { background-color: #050505; }
+        .team-header { margin-bottom: 60px; text-align: center; }
+        .team-sub { font-size: 14px; color: #666; margin-bottom: 8px; letter-spacing: 3px; font-weight: bold; }
+        .team-main-title { font-size: 36px; color: #fff; font-weight: 900; letter-spacing: 2px; }
+        .team-main-title span { color: #fff; border-bottom: 4px solid #00dbde; padding-bottom: 10px; }
+        .team-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(400px, 1fr)); gap: 40px; max-width: 1200px; width: 90%; }
+        .member-card { background: rgba(255, 255, 255, 0.03); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 20px; padding: 30px; display: flex; align-items: center; transition: 0.3s; position: relative; overflow: hidden; }
+        .member-card:hover { transform: translateX(10px); background: rgba(255, 255, 255, 0.06); }
+        .card-cicd:hover { border-color: #ffaa00; box-shadow: 0 0 20px rgba(255, 170, 0, 0.1); }
+        .card-analyze:hover { border-color: #00ff00; box-shadow: 0 0 20px rgba(0, 255, 0, 0.1); }
+        .card-db:hover { border-color: #00aaff; box-shadow: 0 0 20px rgba(0, 170, 255, 0.1); }
+        .card-web:hover { border-color: #ff00de; box-shadow: 0 0 20px rgba(255, 0, 222, 0.1); }
+        .member-avatar { width: 80px; height: 80px; background: #222; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin-right: 25px; border: 2px solid #333; font-size: 32px; flex-shrink: 0; transition: 0.3s; }
+        .member-info { text-align: left; }
+        .member-name { font-size: 24px; font-weight: 800; color: #fff; margin-bottom: 5px; }
+        .member-role { font-size: 13px; font-weight: 700; margin-bottom: 10px; letter-spacing: 1px; text-transform: uppercase; }
+        .member-contact { font-size: 13px; color: #888; font-family: 'Courier New', monospace; display: flex; align-items: center; gap: 10px; margin-bottom: 3px; }
+        .role-cicd { color: #ffaa00; } .role-analyze { color: #00ff00; } .role-db { color: #00aaff; } .role-web { color: #ff00de; }
+        .card-cicd:hover .member-avatar { border-color: #ffaa00; color: #ffaa00; box-shadow: 0 0 20px rgba(255, 170, 0, 0.3); }
+        .card-analyze:hover .member-avatar { border-color: #00ff00; color: #00ff00; box-shadow: 0 0 20px rgba(0, 255, 0, 0.3); }
+        .card-db:hover .member-avatar { border-color: #00aaff; color: #00aaff; box-shadow: 0 0 20px rgba(0, 170, 255, 0.3); }
+        .card-web:hover .member-avatar { border-color: #ff00de; color: #ff00de; box-shadow: 0 0 20px rgba(255, 0, 222, 0.3); }
+
+        /* 로딩 화면 */
+        #loading-section { position: fixed; top:0; left:0; width: 100%; height: 100%; z-index: 9999; background: #000; display: none; flex-direction: column; align-items: center; justify-content: center; }
+        .loader-text { color: #fff; font-size: 24px; font-weight: bold; letter-spacing: 4px; margin-bottom: 30px; animation: blink 1s infinite; }
+        .progress-container { width: 400px; height: 6px; background: #333; border-radius: 3px; overflow: hidden; }
+        .progress-bar { width: 0%; height: 100%; background: linear-gradient(90deg, #ff00de, #00dbde); transition: width 0.1s linear; }
+        @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0; } }
+        ::-webkit-scrollbar { width: 10px; } ::-webkit-scrollbar-track { background: #111; } ::-webkit-scrollbar-thumb { background: #444; border-radius: 5px; } ::-webkit-scrollbar-thumb:hover { background: #666; }
+    </style>
+</head>
+<body>
+
+    <section id="main-section">
+        <div class="container">
+            <h1>BEAT VISUAL</h1>
+            <p>Select your vibe & Play</p>
+            
+            <form id="uploadForm" onsubmit="handleUpload(event)">
+                <input type="file" id="fileInput" name="file" accept="audio/*" required>
+                
+                <span class="theme-label">SELECT VISUAL THEME</span>
+                <div class="theme-selector">
+                    <label class="theme-option">
+                        <input type="radio" name="theme" value="theme_sunset.html" onchange="toggleSubOptions()">
+                        <div class="theme-card">
+                            <div class="theme-icon">🚗</div>
+                            <div class="theme-name">SUNSET DRIVE</div>
+                        </div>
+                    </label>
+                    <label class="theme-option">
+                        <input type="radio" name="theme" value="theme_studio.html" onchange="toggleSubOptions()">
+                        <div class="theme-card">
+                            <div class="theme-icon">🎧</div>
+                            <div class="theme-name">MUSIC STUDIO</div>
+                        </div>
+                    </label>
+                    <label class="theme-option">
+                        <input type="radio" name="theme" value="theme_video.html" checked onchange="toggleSubOptions()">
+                        <div class="theme-card">
+                            <div class="theme-icon">🎥</div>
+                            <div class="theme-name">AI VIDEO</div>
+                        </div>
+                    </label>
+                </div>
+
+                <div id="sub-style-section">
+                    <span class="sub-label">SELECT GENERATION STYLE</span>
+                    <div class="theme-selector">
+                        <label class="theme-option sub-option">
+                            <input type="radio" name="video_style" value="cartoon" checked>
+                            <div class="theme-card">
+                                <div class="theme-icon">🎨</div>
+                                <div class="theme-name">CARTOON</div>
+                            </div>
+                        </label>
+                        <label class="theme-option sub-option">
+                            <input type="radio" name="video_style" value="realistic">
+                            <div class="theme-card">
+                                <div class="theme-icon">📸</div>
+                                <div class="theme-name">REALISTIC</div>
+                            </div>
+                        </label>
+                        <label class="theme-option sub-option">
+                            <input type="radio" name="video_style" value="ghibli">
+                            <div class="theme-card">
+                                <div class="theme-icon">🏰</div>
+                                <div class="theme-name">GHIBLI (ZIBRI)</div>
+                            </div>
+                        </label>
+                    </div>
+                </div>
+
+                <button type="submit" class="submit-btn">START VISUALIZATION</button>
+            </form>
+        </div>
+
+        <div class="scroll-hint" onclick="document.getElementById('info-section').scrollIntoView({behavior: 'smooth'})">
+            SCROLL FOR INFO <span>⌄</span>
+        </div>
+    </section>
+
+    <section id="info-section">
+        <div class="info-title">테마 소개</div>
+        <div class="cards-wrapper">
+            
+            <div class="info-card card-sunset">
+                <div class="card-image">
+                    <div class="static-bg img-sunset"></div>
+                    <img src="images/sunset.gif" class="gif-preview" alt="Sunset Theme">
+                </div> 
+                <div class="card-content">
+                    <div class="card-title">SUNSET DRIVE</div>
+                    <div class="card-desc">80년대 신스웨이브 감성을 담아...</div>
+                    <div class="hashtags hash-sunset">#SYNTHWAVE #RETROWAVE #NIGHTDRIVE</div>
+                </div>
+            </div>
+
+            <div class="info-card card-studio">
+                <div class="card-image">
+                    <div class="static-bg img-studio"></div>
+                    <img src="images/studio.gif" class="gif-preview" alt="Studio Theme" onerror="this.src='images/pixel.gif'">
+                </div>
+                <div class="card-content">
+                    <div class="card-title">MUSIC STUDIO</div>
+                    <div class="card-desc">
+                        AI가 분석한 음악의 분위기에 따라<br>
+                        창밖 배경과 실내 조명이 실시간으로 반응하는<br>
+                        나만의 3D 작업실 공간
+                    </div>
+                    <div class="hashtags hash-studio">#STUDIO #INTERACTIVE #AI_MOOD</div>
+                </div>
+            </div>
+
+            <div class="info-card card-video">
+                <div class="card-image">
+                    <div class="static-bg img-video"></div>
+                    <img src="images/video.gif" class="gif-preview" alt="AI Video Theme" onerror="this.src='images/cyber.gif'">
+                </div>
+                <div class="card-content">
+                    <div class="card-title">AI VIDEO</div>
+                    <div class="card-desc">
+                        음악의 리듬과 감성을 AI가 완벽하게 해석하여,<br>
+                        세상에 단 하나뿐인 고퀄리티 영상을<br>
+                        실시간으로 생성하고 재생합니다.
+                    </div>
+                    <div class="hashtags hash-video">#GENERATIVE_AI #SORA #VIDEO_ART</div>
+                </div>
+            </div>
+
+        </div>
+        <div class="scroll-hint" onclick="document.getElementById('team-section').scrollIntoView({behavior: 'smooth'})">
+            SCROLL FOR TEAM <span>⌄</span>
+        </div>
+    </section>
+
+    <section id="team-section">
+        <div class="team-header">
+            <div class="team-sub">BEAT VISUAL</div>
+            <div class="team-main-title">팀원 소개 및 <span>파트 소개</span></div>
+        </div>
+        <div class="team-grid">
+            <div class="member-card card-cicd">
+                <div class="member-avatar">👨‍💻</div>
+                <div class="member-info">
+                    <div class="member-name">강범석</div>
+                    <div class="member-role role-cicd">SERVER/MONITORING</div>
+                    <div class="member-contact">📧 alvin852@naver.com</div>
+                </div>
+            </div>
+            <div class="member-card card-analyze">
+                <div class="member-avatar">🎬</div>
+                <div class="member-info">
+                    <div class="member-name">김자윤</div>
+                    <div class="member-role role-analyze">AI ANALYZER</div>
+                    <div class="member-contact">📧 rlawkdbs3@naver.com</div>
+                </div>
+            </div>
+            <div class="member-card card-db">
+                <div class="member-avatar">👩‍💻</div>
+                <div class="member-info">
+                    <div class="member-name">이해연</div>
+                    <div class="member-role role-db">DB/DR SERVER</div>
+                    <div class="member-contact">📧 lhy30919@naver.com</div>
+                </div>
+            </div>
+            <div class="member-card card-web">
+                <div class="member-avatar">🌐</div>
+                <div class="member-info">
+                    <div class="member-name">김영성</div>
+                    <div class="member-role role-web">FRONTEND</div>
+                    <div class="member-contact">📧 leokim1126@naver.com</div>
+                </div>
+            </div>
+        </div>
+    </section>
+    
+    <div id="loading-section">
+        <div class="loader-text">AI ANALYZING...</div>
+        <div class="progress-container">
+            <div id="progress-bar" class="progress-bar"></div>
+        </div>
+    </div>
+
+    <script>
+        const LOCAL_TEST_JSON = './music_project/theme.json'; 
+        let progressInterval = null;
+
+        // ★ [추가됨] 테마 선택 시 서브 옵션 토글 함수
+        function toggleSubOptions() {
+            const selectedTheme = document.querySelector('input[name="theme"]:checked').value;
+            const subSection = document.getElementById('sub-style-section');
+            
+            // theme_video.html 선택 시에만 보이게 설정
+            if (selectedTheme === 'theme_video.html') {
+                subSection.style.display = 'block';
+            } else {
+                subSection.style.display = 'none';
+            }
+        }
+
+        // 페이지 로드 시 초기 상태 확인
+        window.addEventListener('load', toggleSubOptions);
+        
+        async function handleUpload(event) { 
+            event.preventDefault(); 
+            const fileInput = document.getElementById('fileInput'); 
+            const file = fileInput.files[0];
+            if (!file) { alert("파일을 선택해주세요."); return; }
+
+            document.body.style.overflow = 'hidden';
+            document.getElementById('loading-section').style.display = 'flex'; 
+            startLoadingAnimation();
+
+            setTimeout(() => {
+                fetchAndStart();
+            }, 2000);
+        }
+
+        function startLoadingAnimation() {
+            const bar = document.getElementById('progress-bar');
+            let width = 0;
+            if(progressInterval) clearInterval(progressInterval);
+            progressInterval = setInterval(() => {
+                if (width < 90) { width += 0.5; if(bar) bar.style.width = width + '%'; }
+            }, 50);
+        }
+
+        async function fetchAndStart() { 
+            try { 
+                const res = await fetch(LOCAL_TEST_JSON); 
+                
+                if (res.status === 200) { 
+                    clearInterval(progressInterval);
+                    document.getElementById('progress-bar').style.width = '100%';
+                    
+                    const analysisData = await res.json();
+                    
+                    // ★ 선택된 비디오 스타일 정보도 함께 저장
+                    const selectedStyle = document.querySelector('input[name="video_style"]:checked') ? document.querySelector('input[name="video_style"]:checked').value : 'none';
+                    analysisData.selectedVideoStyle = selectedStyle;
+
+                    localStorage.setItem('visualData', JSON.stringify(analysisData));
+
+                    const selectedThemePage = document.querySelector('input[name="theme"]:checked').value;
+                    setTimeout(() => { window.location.href = selectedThemePage; }, 500);
+                } else {
+                    throw new Error("Local JSON file not found");
+                }
+            } catch (e) {
+                alert("테스트 데이터(music_project/theme.json)를 찾을 수 없습니다!");
+                location.reload();
+            } 
+        }
+    </script>
+</body>
+</html>

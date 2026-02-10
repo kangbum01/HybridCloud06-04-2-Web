@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="utf-8">
+    <title>VISUALIZER: AI VIDEO</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@300;500;900&display=swap');
+
+        body { margin: 0; overflow: hidden; background: #000; font-family: 'Montserrat', sans-serif; cursor: pointer; }
+        
+        /* 홈 버튼 */
+        .back-btn { 
+            position: absolute; top: 20px; right: 20px; z-index: 100; 
+            padding: 10px 20px; background: rgba(255, 255, 255, 0.1); 
+            border: 1px solid rgba(255,255,255,0.5); color: #fff; 
+            border-radius: 20px; cursor: pointer; transition: 0.3s;
+            text-decoration: none; font-size: 14px; font-weight: bold;
+        }
+        .back-btn:hover { background: #fff; color: #000; }
+
+        /* 배경 비디오 */
+        #bg-video {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            object-fit: cover; z-index: 1; opacity: 0.8; /* 정보창 없을 때를 대비해 조금 더 밝게 */
+            filter: contrast(1.1) saturate(1.1); 
+        }
+
+        /* 결과 정보 UI (기본 opacity 0) */
+        #result-ui { position: absolute; width: 100%; height: 100%; z-index: 50; pointer-events: none; opacity: 0; transition: opacity 1s; }
+        
+        .vibe-badge { 
+            position: absolute; bottom: 40px; left: 40px; 
+            color: #fff; font-size: 3em; font-weight: 900; 
+            mix-blend-mode: screen; text-shadow: 0 0 20px rgba(0,255,0,0.5);
+            text-transform: uppercase;
+        }
+        .vibe-sub { font-size: 14px; display: block; margin-top: 5px; opacity: 0.8; letter-spacing: 2px; }
+        
+        .music-stats { 
+            position: absolute; bottom: 130px; left: 45px; 
+            text-align: left; font-family: 'Courier New', monospace; 
+        }
+        .stat-row { margin-bottom: 6px; color: rgba(255, 255, 255, 0.6); font-size: 12px; letter-spacing: 1px; }
+        .stat-value { color: #00ff00; font-weight: bold; font-size: 14px; margin-left: 10px; }
+
+        /* 시작 오버레이 */
+        #start-overlay {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: #000; z-index: 9999;
+            display: flex; flex-direction: column;
+            align-items: center; justify-content: center;
+            cursor: pointer; transition: opacity 0.8s;
+        }
+        .start-title { color: #fff; font-size: 40px; font-weight: 900; letter-spacing: 5px; margin-bottom: 10px; }
+        .start-sub { color: #00ff00; font-size: 14px; letter-spacing: 2px; animation: blink 1.5s infinite; margin-bottom: 30px; }
+        @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
+
+        /* [추가됨] 정보 표시 체크박스 스타일 */
+        .option-container { display: flex; align-items: center; gap: 10px; pointer-events: auto; }
+        .option-label { color: #888; font-size: 12px; letter-spacing: 1px; transition: 0.3s; }
+        input[type="checkbox"] { accent-color: #00ff00; cursor: pointer; width: 16px; height: 16px; }
+        input[type="checkbox"]:checked + .option-label { color: #00ff00; font-weight: bold; }
+
+        /* 오디오 숨김 */
+        #audio-player { display: none; }
+    </style>
+</head>
+<body>
+    <a href="index.html" class="back-btn">🏠 HOME</a>
+
+    <div id="start-overlay" onclick="startExperience()">
+        <div class="start-title">AI VIDEO</div>
+        <div class="start-sub">CLICK TO GENERATE</div>
+        
+        <div class="option-container" onclick="event.stopPropagation()">
+            <input type="checkbox" id="show-info-check">
+            <label for="show-info-check" class="option-label">SHOW MUSIC INFO</label>
+        </div>
+    </div>
+
+    <video id="bg-video" loop muted playsinline></video>
+
+    <audio id="audio-player" src="./music_project/test.mp3" loop></audio>
+
+    <div id="result-ui">
+        <div id="music-stats-container" class="music-stats">
+            <div class="stat-row">TEMPO <span id="info-tempo" class="stat-value">LOADING...</span></div>
+            <div class="stat-row">ENERGY <span id="info-energy" class="stat-value">LOADING...</span></div>
+            <div class="stat-row">STYLE <span id="info-style" class="stat-value">LOADING...</span></div>
+        </div>
+        <div id="vibe-display" class="vibe-badge">AI GENERATING...</div>
+    </div>
+
+    <script>
+        // ============================================================
+        // ★ 0. 전역 변수
+        // ============================================================
+        const audioPlayer = document.getElementById('audio-player');
+        const videoPlayer = document.getElementById('bg-video');
+        const startOverlay = document.getElementById('start-overlay');
+        const resultUi = document.getElementById('result-ui');
+        const infoCheckbox = document.getElementById('show-info-check'); // 체크박스
+
+        // 비디오 맵핑
+        const VIDEO_MAP = {
+            "cartoon": "./music_project/video_cartoon.mp4",
+            "realistic": "./music_project/video_realistic.mp4",
+            "ghibli": "./music_project/video_ghibli.mp4",
+            "none": "./music_project/video_default.mp4"
+        };
+
+        // ============================================================
+        // ★ 1. 시작 로직 (체크박스 확인)
+        // ============================================================
+        function startExperience() {
+            startOverlay.style.opacity = '0';
+            setTimeout(() => { startOverlay.style.display = 'none'; }, 800);
+            
+            // ★ [핵심] 체크박스가 체크되어 있을 때만 정보창 표시
+            if (infoCheckbox.checked) {
+                resultUi.style.opacity = '1';
+                videoPlayer.style.opacity = '0.6'; // 글씨 잘 보이게 영상 어둡게
+            } else {
+                resultUi.style.opacity = '0';
+                videoPlayer.style.opacity = '1.0'; // 영상만 볼 땐 밝게
+            }
+            
+            audioPlayer.play().catch(e => console.log("Audio play error", e));
+            videoPlayer.play().catch(e => console.log("Video play error", e));
+        }
+
+        // ============================================================
+        // ★ 2. 데이터 로드 및 UI 업데이트
+        // ============================================================
+        let visualData = JSON.parse(localStorage.getItem('visualData'));
+
+        if (!visualData) {
+            visualData = {
+                emotion_rankings: [{ mood: "Dreamy", confidence: "0.99" }],
+                analysis: { tempo: 95, intensity: 0.6 },
+                selectedVideoStyle: "cartoon"
+            };
+        }
+
+        renderUI(visualData);
+
+        function renderUI(data) {
+            const topMood = (data.emotion_rankings && data.emotion_rankings[0]) ? data.emotion_rankings[0] : { mood: "Unknown", confidence: 0 };
+            
+            document.getElementById('vibe-display').innerHTML = `${topMood.mood}<span class="vibe-sub">CONFIDENCE: ${topMood.confidence}</span>`; 
+            
+            const bpm = data.analysis.tempo || 'N/A';
+            const intensity = data.analysis.intensity ? (data.analysis.intensity * 100).toFixed(0) : 0;
+            const style = data.selectedVideoStyle ? data.selectedVideoStyle.toUpperCase() : "AUTO";
+            
+            document.getElementById('info-tempo').innerText = `${bpm} BPM`;
+            document.getElementById('info-energy').innerText = `${intensity} %`;
+            document.getElementById('info-style').innerText = style;
+
+            const videoSrc = VIDEO_MAP[data.selectedVideoStyle] || VIDEO_MAP["none"];
+            videoPlayer.src = videoSrc;
+        }
+    </script>
+</body>
+</html>

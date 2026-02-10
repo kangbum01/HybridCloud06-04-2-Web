@@ -1,0 +1,298 @@
+{
+  "desk": {
+    "pos": {
+      "x": 5.77,
+      "y": 0,
+      "z": -8.31
+    },
+    "rotDeg": 270,
+    "scale": 2.6,
+    "color": "#303030"
+  },
+  "Mixing_Desk": {
+    "pos": {
+      "x": 5.1,
+      "y": 2.7,
+      "z": -7.9
+    },
+    "rotDeg": 180,
+    "scale": 0.6,
+    "color": "#eeeeee"
+  },
+  "standing_desk": {
+    "pos": {
+      "x": 2,
+      "y": 1,
+      "z": -7.6
+    },
+    "rotDeg": 90,
+    "scale": 2.6,
+    "color": "#303030"
+  },
+  "standing_desk2": {
+    "pos": {
+      "x": 2,
+      "y": 1,
+      "z": -4.62
+    },
+    "rotDeg": 90,
+    "scale": 2.6,
+    "color": "#303030"
+  },
+  "speaker1": {
+    "pos": {
+      "x": 7.45,
+      "y": 2.45,
+      "z": -8.65
+    },
+    "rotDeg": 323,
+    "scale": 1,
+    "color": "#eeeeee"
+  },
+  "speaker2": {
+    "pos": {
+      "x": 2.09,
+      "y": 2.45,
+      "z": -8.65
+    },
+    "rotDeg": 36,
+    "scale": 1,
+    "color": "#eeeeee"
+  },
+  "gameboy": {
+    "pos": {
+      "x": 7.04,
+      "y": 2.78,
+      "z": -7.8
+    },
+    "rotDeg": 220,
+    "scale": 0.5,
+    "color": "#eeeeee"
+  },
+  "Headphone": {
+    "pos": {
+      "x": 7.12,
+      "y": 2.53,
+      "z": -6.43
+    },
+    "rotDeg": 281,
+    "scale": 2,
+    "color": "#eeeeee"
+  },
+  "wall2": {
+    "pos": {
+      "x": 8.5,
+      "y": 0,
+      "z": -2.5
+    },
+    "rotDeg": 0,
+    "scale": 3,
+    "color": "#ccad7f"
+  },
+  "wall1": {
+    "pos": {
+      "x": 8.5,
+      "y": 0,
+      "z": -8.5
+    },
+    "rotDeg": 0,
+    "scale": 3,
+    "color": "#ccad7f"
+  },
+  "wall4": {
+    "pos": {
+      "x": 10.13,
+      "y": 0,
+      "z": -9.85
+    },
+    "rotDeg": 90,
+    "scale": 3,
+    "color": "#ccad7f"
+  },
+  "wall3": {
+    "pos": {
+      "x": 8.5,
+      "y": 0,
+      "z": -5.5
+    },
+    "rotDeg": 0,
+    "scale": 3,
+    "color": "#ccad7f"
+  },
+  "midi_controller": {
+    "pos": {
+      "x": 1.97,
+      "y": 2.46,
+      "z": -5.92
+    },
+    "rotDeg": 90,
+    "scale": 0.03,
+    "color": "#eeeeee"
+  },
+  "wall_low": {
+    "pos": {
+      "x": 5.77,
+      "y": -1.98,
+      "z": -9.85
+    },
+    "rotDeg": 90,
+    "scale": 3,
+    "color": "#ccad7f"
+  },
+  "wall5": {
+    "pos": {
+      "x": -0.8,
+      "y": 0,
+      "z": -9.85
+    },
+    "rotDeg": 90,
+    "scale": 3,
+    "color": "#ccad7f"
+  },
+  "wall_low3": {
+    "pos": {
+      "x": 5.77,
+      "y": 6.24,
+      "z": -9.85
+    },
+    "rotDeg": 90,
+    "scale": 3,
+    "color": "#ccad7f"
+  },
+  "monitor1": {
+    "pos": {
+      "x": 4.9,
+      "y": 2.45,
+      "z": -8.98
+    },
+    "rotDeg": 0,
+    "scale": 5,
+    "color": "#eeeeee"
+  },
+  "nintendo": {
+    "pos": {
+      "x": 7.81,
+      "y": 2.45,
+      "z": -7.45
+    },
+    "rotDeg": 45,
+    "scale": 0.01,
+    "color": "#eeeeee"
+  },
+  "wall_low2": {
+    "pos": {
+      "x": 0,
+      "y": -1.98,
+      "z": -9.85
+    },
+    "rotDeg": 90,
+    "scale": 3,
+    "color": "#ccad7f"
+  },
+  "wall_window": {
+    "pos": {
+      "x": 4.65,
+      "y": 1.55,
+      "z": -9.8
+    },
+    "rotDeg": 90,
+    "scale": 2,
+    "color": "#eeeeee"
+  },
+  "wall_low4": {
+    "pos": {
+      "x": 0.07,
+      "y": 6.24,
+      "z": -9.85
+    },
+    "rotDeg": 270,
+    "scale": 3,
+    "color": "#ccad7f"
+  },
+  "energy_drink2": {
+    "pos": {
+      "x": 7.5,
+      "y": 4.55,
+      "z": -8.9
+    },
+    "rotDeg": 217,
+    "scale": 0.2,
+    "color": "#eeeeee"
+  },
+  "energy_drink1": {
+    "pos": {
+      "x": 7.5,
+      "y": 4.55,
+      "z": -8.4
+    },
+    "rotDeg": 217,
+    "scale": 0.2,
+    "color": "#eeeeee"
+  },
+  "energy_drink3": {
+    "pos": {
+      "x": 7.1,
+      "y": 4.55,
+      "z": -8.65
+    },
+    "rotDeg": 217,
+    "scale": 0.2,
+    "color": "#eeeeee"
+  },
+  "whiteboard": {
+    "pos": {
+      "x": 8.36,
+      "y": 3.72,
+      "z": -7.3
+    },
+    "rotDeg": 180,
+    "scale": 1.08,
+    "color": "#eeeeee"
+  },
+  "camara": {
+    "pos": {
+      "x": 2.08,
+      "y": 4.14,
+      "z": -8.65
+    },
+    "rotDeg": 9,
+    "scale": 0.13,
+    "color": "#eeeeee"
+  },
+  "backdrop": {
+    "pos": {
+      "x": 3.96,
+      "y": 4.5,
+      "z": -19.56
+    },
+    "scale": {
+      "x": 16,
+      "y": 9
+    },
+    "imageData": null,
+    "videoData": null
+  },
+  "camera": {
+    "pos": {
+      "x": 4.811322916769001,
+      "y": 4.1003138237776495,
+      "z": -3.6476561144672974
+    },
+    "target": {
+      "x": 5.723421122771882,
+      "y": 3.2003816434043144,
+      "z": -10.970304568444874
+    }
+  },
+  "lights": {
+    "sun": {
+      "x": 5,
+      "y": 8,
+      "z": 5,
+      "intensity": 1.5
+    },
+    "ambient": {
+      "intensity": 0.8
+    }
+  }
+}

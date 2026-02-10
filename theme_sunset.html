@@ -1,0 +1,294 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="utf-8">
+    <title>VISUALIZER: SUNSET</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/EffectComposer.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/Pass.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/RenderPass.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/ShaderPass.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/shaders/CopyShader.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/shaders/LuminosityHighPassShader.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/UnrealBloomPass.js"></script>
+
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@300;500;900&display=swap');
+
+        body { background-color: #000; margin: 0; padding: 0; overflow: hidden; font-family: 'Montserrat', sans-serif; cursor: pointer; }
+        #visualization-container { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 1; }
+        
+        /* 홈 버튼 */
+        .back-btn { 
+            position: absolute; top: 20px; right: 20px; z-index: 100; 
+            padding: 10px 20px; background: rgba(255, 255, 255, 0.1); 
+            border: 1px solid rgba(255,255,255,0.5); color: #fff; 
+            border-radius: 20px; cursor: pointer; transition: 0.3s;
+            text-decoration: none; font-size: 14px; font-weight: bold;
+        }
+        .back-btn:hover { background: #fff; color: #000; }
+
+        /* 결과 화면 UI (기본 opacity 0) */
+        #result-ui { position: absolute; width: 100%; height: 100%; z-index: 50; pointer-events: none; opacity: 0; transition: opacity 1s; }
+        .vibe-badge { position: absolute; bottom: 40px; left: 40px; color: #fff; font-size: 3em; font-weight: 900; mix-blend-mode: screen; text-shadow: 0 0 20px rgba(255,255,255,0.5); }
+        .vibe-sub { font-size: 14px; display: block; margin-top: 5px; opacity: 0.8; letter-spacing: 2px; }
+        
+        .music-stats { position: absolute; bottom: 130px; left: 45px; text-align: left; font-family: 'Courier New', monospace; }
+        .stat-row { margin-bottom: 6px; color: rgba(255, 255, 255, 0.6); font-size: 12px; letter-spacing: 1px; }
+        .stat-value { color: #00dbde; font-weight: bold; font-size: 14px; margin-left: 10px; }
+
+        /* 시작 오버레이 */
+        #start-overlay {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.85); z-index: 9999;
+            display: flex; flex-direction: column;
+            align-items: center; justify-content: center;
+            cursor: pointer; transition: opacity 0.5s;
+        }
+        .start-title { color: #fff; font-size: 40px; font-weight: 900; letter-spacing: 5px; margin-bottom: 10px; }
+        .start-sub { color: #ff00de; font-size: 14px; letter-spacing: 2px; animation: blink 1.5s infinite; margin-bottom: 30px; }
+        @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
+
+        /* [추가됨] 정보 표시 체크박스 스타일 */
+        .option-container { display: flex; align-items: center; gap: 10px; pointer-events: auto; }
+        .option-label { color: #888; font-size: 12px; letter-spacing: 1px; transition: 0.3s; }
+        input[type="checkbox"] { accent-color: #ff00de; cursor: pointer; width: 16px; height: 16px; }
+        input[type="checkbox"]:checked + .option-label { color: #ff00de; font-weight: bold; }
+
+        /* 오디오 숨김 */
+        #audio-player { display: none; }
+    </style>
+</head>
+<body>
+    <a href="index.html" class="back-btn">🏠 HOME</a>
+
+    <div id="start-overlay" onclick="startExperience()">
+        <div class="start-title">SUNSET DRIVE</div>
+        <div class="start-sub">CLICK TO START</div>
+
+        <div class="option-container" onclick="event.stopPropagation()">
+            <input type="checkbox" id="show-info-check">
+            <label for="show-info-check" class="option-label">SHOW MUSIC INFO</label>
+        </div>
+    </div>
+
+    <audio id="audio-player" src="./music_project/test.mp3" loop></audio>
+
+    <div id="visualization-container"></div>
+    
+    <div id="result-ui">
+        <div id="music-stats-container" class="music-stats"></div>
+        <div id="vibe-display" class="vibe-badge"></div>
+    </div>
+
+    <script>
+        // ============================================================
+        // ★ 0. 전역 변수 및 시작 로직
+        // ============================================================
+        const audioPlayer = document.getElementById('audio-player');
+        const startOverlay = document.getElementById('start-overlay');
+        const resultUi = document.getElementById('result-ui');
+        const infoCheckbox = document.getElementById('show-info-check');
+        let isPlaying = false; 
+
+        function startExperience() {
+            startOverlay.style.opacity = '0';
+            setTimeout(() => { startOverlay.style.display = 'none'; }, 500);
+            
+            // ★ 체크박스 상태에 따라 UI 표시 여부 결정
+            if (infoCheckbox.checked) {
+                resultUi.style.opacity = '1';
+            } else {
+                resultUi.style.opacity = '0';
+            }
+            
+            audioPlayer.play().then(() => {
+                console.log("Audio playing...");
+                isPlaying = true;
+            }).catch(e => {
+                console.warn("Audio play failed:", e);
+                isPlaying = true;
+            });
+        }
+
+        // ============================================================
+        // ★ 1. 데이터 로드
+        // ============================================================
+        let visualData = JSON.parse(localStorage.getItem('visualData'));
+
+        if (!visualData) {
+            visualData = {
+                emotion_rankings: [{ mood: "Energetic", confidence: "0.95" }],
+                analysis: { tempo: 128, intensity: 0.8 },
+                palette: { main: "#ff00de", accent: "#00dbde" }
+            };
+        }
+
+        renderUI(visualData);
+        startSunsetDrive(visualData);
+
+        function renderUI(data) {
+            const topMood = (data.emotion_rankings && data.emotion_rankings[0]) ? data.emotion_rankings[0] : { mood: "Unknown", confidence: 0 }; 
+            document.getElementById('vibe-display').innerHTML = `${topMood.mood}<span class="vibe-sub">CONFIDENCE: ${topMood.confidence}</span>`; 
+            
+            const bpm = data.analysis.tempo || 'N/A';
+            const intensity = data.analysis.intensity ? (data.analysis.intensity * 100).toFixed(0) : 0;
+            const themeColor = data.palette.main || '#FFF';
+            
+            document.getElementById('music-stats-container').innerHTML = `
+                <div class="stat-row">TEMPO <span class="stat-value">${bpm} BPM</span></div>
+                <div class="stat-row">ENERGY <span class="stat-value">${intensity} %</span></div>
+                <div class="stat-row">THEME <span class="stat-value" style="color:${themeColor}">${themeColor}</span></div>
+            `;
+        }
+
+        // ============================================================
+        // 🛠️ THREE.JS HELPER
+        // ============================================================
+        function initThreeJS(data, animationCallback, usePixelArt=false) {
+            const container = document.getElementById('visualization-container');
+            const cMain = new THREE.Color(data.palette.main);
+            const cAccent = new THREE.Color(data.palette.accent);
+            const bpm = data.analysis.tempo || 120;
+
+            const scene = new THREE.Scene();
+            const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+            
+            const renderer = new THREE.WebGLRenderer({ antialias: !usePixelArt, alpha: false });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setClearColor(0x000000, 1);
+            renderer.toneMapping = THREE.ACESFilmicToneMapping;
+            renderer.toneMappingExposure = 1.0; 
+            container.appendChild(renderer.domElement);
+
+            const renderScene = new THREE.RenderPass(scene, camera);
+            const bloomPass = new THREE.UnrealBloomPass(new THREE.Vector2(window.innerWidth, window.innerHeight), 1.5, 0.4, 0.85);
+            bloomPass.threshold = 0.1; bloomPass.strength = 0.8; bloomPass.radius = 0.5;
+            
+            const composer = new THREE.EffectComposer(renderer);
+            composer.addPass(renderScene);
+            composer.addPass(bloomPass);
+
+            const clock = new THREE.Clock();
+
+            const listener = new THREE.AudioListener();
+            camera.add(listener);
+            const sound = new THREE.Audio(listener);
+            let analyser = null;
+
+            audioPlayer.onplay = () => {
+                const context = listener.context;
+                if (context.state === 'suspended') context.resume();
+                if (!sound.source) {
+                    const source = context.createMediaElementSource(audioPlayer);
+                    sound.setNodeSource(source);
+                    analyser = new THREE.AudioAnalyser(sound, 128);
+                }
+            };
+
+            function animate() {
+                requestAnimationFrame(animate);
+                const delta = clock.getDelta();
+                const time = clock.getElapsedTime();
+                
+                let baseIntensity = data.analysis.intensity || 0.5;
+                let intensity = baseIntensity;
+
+                if (isPlaying && analyser) {
+                    const avg = analyser.getAverageFrequency();
+                    intensity = (avg / 255) * 1.5; 
+                } else {
+                    intensity = baseIntensity * 0.3; 
+                }
+
+                bloomPass.strength = 0.5 + (intensity * 0.5);
+
+                animationCallback(scene, camera, renderer, composer, cMain, cAccent, intensity, bpm, time, delta);
+                composer.render();
+            }
+
+            window.addEventListener('resize', () => {
+                camera.aspect = window.innerWidth / window.innerHeight;
+                camera.updateProjectionMatrix();
+                renderer.setSize(window.innerWidth, window.innerHeight);
+                composer.setSize(window.innerWidth, window.innerHeight);
+            });
+            animate();
+        }
+
+        // ============================================================
+        // 🚗 SUNSET DRIVE THEME LOGIC
+        // ============================================================
+        function createGridTexture(color) {
+            const canvas = document.createElement('canvas'); canvas.width = 1024; canvas.height = 1024;
+            const ctx = canvas.getContext('2d');
+            ctx.fillStyle = '#000000'; ctx.fillRect(0, 0, 1024, 1024);
+            ctx.strokeStyle = `rgb(${color.r*255}, ${color.g*255}, ${color.b*255})`;
+            ctx.lineWidth = 4; ctx.beginPath();
+            for(let i=0; i<=1024; i+=64) { ctx.moveTo(i, 0); ctx.lineTo(i, 1024); ctx.moveTo(0, i); ctx.lineTo(1024, i); }
+            ctx.stroke();
+            const tex = new THREE.CanvasTexture(canvas);
+            tex.wrapS = THREE.RepeatWrapping; tex.wrapT = THREE.RepeatWrapping;
+            tex.repeat.set(20, 40); tex.anisotropy = 16;
+            return tex;
+        }
+
+        function createCarObject(color) {
+            const group = new THREE.Group();
+            const body = new THREE.Mesh(new THREE.BoxGeometry(2.2, 0.8, 4.5), new THREE.MeshBasicMaterial({ color: 0x111111 }));
+            body.position.y = 0.8; group.add(body);
+            const cabin = new THREE.Mesh(new THREE.BoxGeometry(1.8, 0.6, 2.5), new THREE.MeshBasicMaterial({ color: 0x000000 }));
+            cabin.position.set(0, 1.5, -0.2); group.add(cabin);
+            const tail = new THREE.Mesh(new THREE.BoxGeometry(2.0, 0.1, 0.1), new THREE.MeshBasicMaterial({ color: 0xff0000 }));
+            tail.position.set(0, 0.8, 2.26); group.add(tail);
+            const glow = new THREE.Mesh(new THREE.PlaneGeometry(2.2, 4.5), new THREE.MeshBasicMaterial({ color: color, transparent:true, opacity:0.5, side:THREE.DoubleSide }));
+            glow.rotation.x = -Math.PI/2; glow.position.y = 0.1; group.add(glow);
+            return group;
+        }
+
+        function startSunsetDrive(data) {
+            initThreeJS(data, (scene, camera, renderer, composer, cMain, cAccent, intensity, bpm, time, delta) => {
+                scene.fog = new THREE.FogExp2(cMain, 0.02); 
+                camera.position.set(0, 3, 8); camera.lookAt(0, 1, -20);
+                
+                if(!scene.getObjectByName('sun')) {
+                    const sun = new THREE.Mesh(new THREE.CircleGeometry(40, 64), new THREE.MeshBasicMaterial({ color: cMain, fog: false }));
+                    sun.name = 'sun'; sun.position.set(0, 20, -300); scene.add(sun);
+                    
+                    const gridTex = createGridTexture(cAccent);
+                    const road = new THREE.Mesh(new THREE.PlaneGeometry(400, 1000), new THREE.MeshBasicMaterial({ map: gridTex, color: 0xffffff }));
+                    road.name = 'road'; road.rotation.x = -Math.PI / 2; road.position.z = -200; scene.add(road);
+
+                    const carGroup = createCarObject(cAccent);
+                    carGroup.name = 'car'; scene.add(carGroup);
+                }
+
+                const sun = scene.getObjectByName('sun');
+                const road = scene.getObjectByName('road');
+                const carGroup = scene.getObjectByName('car');
+
+                const baseSpeed = (bpm / 60) * 1.5;
+                const currentSpeed = isPlaying ? (baseSpeed + (intensity * 2.0)) : (baseSpeed * 0.3);
+                
+                road.material.map.offset.y -= currentSpeed * delta * 0.5;
+                
+                const sunPulse = isPlaying ? (Math.sin(time * 10) * 0.05 * intensity) : 0;
+                const sunScale = 1 + sunPulse;
+                sun.scale.set(sunScale, sunScale, 1);
+                
+                if (isPlaying) {
+                    carGroup.position.y = Math.sin(time * 50) * 0.02; 
+                    carGroup.position.x = Math.sin(time * 0.5) * 0.5; 
+                } else {
+                    carGroup.position.y = Math.sin(time * 2) * 0.005;
+                    carGroup.position.x = 0;
+                }
+                
+                camera.position.x = carGroup.position.x * 0.5;
+                camera.lookAt(carGroup.position.x, 1, -50);
+            });
+        }
+    </script>
+</body>
+</html>

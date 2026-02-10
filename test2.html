@@ -1,0 +1,580 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>3D Studio (Updated Exceptions)</title>
+    <style>
+        body { margin: 0; overflow: hidden; background: #1a1a1a; font-family: sans-serif; }
+        .btn-group {
+            position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%);
+            display: flex; gap: 10px; z-index: 100;
+        }
+        button {
+            padding: 12px 24px; font-weight: bold; border: none; border-radius: 8px;
+            cursor: pointer; font-size: 14px; transition: 0.2s;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+        }
+        #btn-export-code { background: #00dbde; color: #000; } 
+        #btn-save-json { background: #ff9933; color: #fff; }   
+        #btn-load-json { background: #666; color: #fff; }
+        #btn-reset { background: #ff4444; color: #fff; }
+        #btn-music { background: #d633ff; color: #fff; } 
+        #btn-video { background: #33ff88; color: #000; }
+        
+        button:hover { transform: translateY(-2px); filter: brightness(1.1); }
+        button:active { transform: translateY(0); }
+        #file-input { display: none; }
+
+        #status-msg {
+            position: absolute; top: 20px; left: 50%; transform: translateX(-50%);
+            background: rgba(0, 0, 0, 0.7); color: #fff; padding: 10px 20px;
+            border-radius: 20px; opacity: 0; transition: opacity 0.5s; pointer-events: none;
+        }
+    </style>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/lil-gui@0.19.1/dist/lil-gui.umd.min.js"></script>
+</head>
+<body>
+    <div id="status-msg">💾 자동 저장됨</div>
+
+    <div class="btn-group">
+        <button id="btn-save-json" onclick="saveToFile()">💾 파일 백업</button>
+        <button id="btn-load-json" onclick="document.getElementById('file-input').click()">📂 파일 불러오기</button>
+        
+        <button id="btn-video" onclick="document.getElementById('video-input').click()">🎬 배경 영상</button>
+        <button onclick="document.getElementById('bg-input').click()">🖼️ 배경 사진</button>
+        
+        <button id="btn-music" onclick="document.getElementById('music-input').click()">🎵 음악 재생 (Click!)</button>
+        
+        <button id="btn-export-code" onclick="exportConfig()">📋 최종 코드 추출</button>
+        <button id="btn-reset" onclick="resetAll()">⚠️ 초기화</button>
+    </div>
+    
+    <input type="file" id="file-input" accept=".json" onchange="loadFromFile(this)">
+    <input type="file" id="bg-input" style="display: none;" accept="image/*" onchange="loadBackdropImage(this)">
+    <input type="file" id="video-input" style="display: none;" accept="video/*" onchange="loadBackdropVideo(this)">
+    <input type="file" id="music-input" style="display: none;" accept="audio/*" onchange="loadMusic(this)">
+
+    <video id="bg-video-element" loop muted playsinline style="display: none;"></video>
+
+    <script>
+        // ==========================================
+        // 🛒 에셋 목록
+        // ==========================================
+        const assetList = [
+            { id: 'wall1',  file: './Household Props 001-glb/Wall Half.glb', scale: 0.5  },
+            { id: 'wall2',  file: './Household Props 001-glb/Wall Half.glb', scale: 0.5  },
+            { id: 'wall3',  file: './Household Props 001-glb/Wall Half.glb', scale: 0.5  },
+            { id: 'wall4',  file: './Household Props 001-glb/Wall Half.glb', scale: 0.5  },
+            { id: 'wall5',  file: './Household Props 001-glb/Wall Half.glb', scale: 0.5  },
+            { id: 'wall_window',  file: './Household Props 001-glb/Wall Window Wide.glb', scale: 0.5  },
+            { id: 'wall_low',  file: './Household Props 001-glb/Wall Low.glb', scale: 0.5  },
+            { id: 'wall_low2',  file: './Household Props 001-glb/Wall Low.glb', scale: 0.5  },
+            { id: 'wall_low3',  file: './Household Props 001-glb/Wall Low.glb', scale: 0.5  },
+            { id: 'wall_low4',  file: './Household Props 001-glb/Wall Low.glb', scale: 0.5  },
+            { id: 'desk', file: './Household Props 001-glb/Adjustable Desk.glb', scale: 0.5  },
+            { id: 'standing_desk', file: './Household Props 001-glb/Standing Desk.glb', scale: 0.5  },
+            { id: 'standing_desk2', file: './Household Props 001-glb/Standing Desk.glb', scale: 0.5  },
+            
+            // 👇 예외 처리 대상들 (색상 변경 X, 원본 유지)
+            { id: 'midi_controller', file: './Household Props 001-glb/MIDI Controller.glb', scale: 0.05  },
+            { id: 'Mixing_Desk', file: './Household Props 001-glb/Digital Audio Mixing Desk.glb', scale: 0.5  },
+            { id: 'speaker1', file: './Household Props 001-glb/Speaker.glb', scale: 0.5  },
+            { id: 'speaker2', file: './Household Props 001-glb/Speaker.glb', scale: 0.5  },
+            { id: 'energy_drink1', file: './Household Props 001-glb/Poly Energy.glb', scale: 0.5  },
+            { id: 'energy_drink2', file: './Household Props 001-glb/Poly Energy.glb', scale: 0.5  },
+            { id: 'energy_drink3', file: './Household Props 001-glb/Poly Energy.glb', scale: 0.5  },
+            { id: 'monitor1', file: './Household Props 001-glb/Monitor.glb', scale: 0.5  }, 
+            { id: 'gameboy', file: './Household Props 001-glb/Gameboy.glb', scale: 0.5  },
+            { id: 'nintendo', file: './Household Props 001-glb/Handheld videogame console.glb', scale: 0.01  },
+            { id: 'camara', file: './Household Props 001-glb/Camera.glb', scale: 0.1  },
+            { id: 'whiteboard', file: './Household Props 001-glb/Whiteboard.glb', scale: 0.5  },
+            { id: 'Headphone', file: './Household Props 001-glb/Headphones And iPod.glb', scale: 0.5  }
+        ];
+
+        // ------------------------------------------
+        // 기본 씬 설정
+        // ------------------------------------------
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0xE8DBB6); 
+
+        const camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.01, 1000);
+        camera.position.set(8, 6, 8); 
+
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.shadowMap.enabled = true; 
+        renderer.shadowMap.type = THREE.PCFSoftShadowMap; 
+        
+        // 톤매핑
+        renderer.outputEncoding = THREE.sRGBEncoding; 
+        renderer.toneMapping = THREE.ACESFilmicToneMapping; 
+        renderer.toneMappingExposure = 1.0; 
+
+        document.body.appendChild(renderer.domElement);
+
+        const controls = new THREE.OrbitControls(camera, renderer.domElement);
+        controls.target.set(0, 1, 0);
+        controls.minDistance = 0.1; 
+        
+        // ------------------------------------------
+        // 💡 조명 설정
+        // ------------------------------------------
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.8);
+        scene.add(ambientLight);
+
+        const dirLight = new THREE.DirectionalLight(0xffffff, 1.5);
+        dirLight.position.set(5, 8, 5); 
+        dirLight.castShadow = true; 
+        dirLight.shadow.mapSize.width = 2048; 
+        dirLight.shadow.mapSize.height = 2048;
+        scene.add(dirLight);
+
+        // ------------------------------------------
+        // 🎵 오디오 & 📊 바(Bar) 스타일 비주얼라이저
+        // ------------------------------------------
+        const listener = new THREE.AudioListener();
+        camera.add(listener);
+        const sound = new THREE.Audio(listener);
+        let analyser;
+        let isMusicPlaying = false;
+
+        // 1. 캔버스 생성 (2:1 비율 -> 1024x512)
+        const vizCanvas = document.createElement('canvas');
+        vizCanvas.width = 1024;
+        vizCanvas.height = 512;
+        const ctx = vizCanvas.getContext('2d');
+        
+        // 2. 텍스처 생성
+        const vizTexture = new THREE.CanvasTexture(vizCanvas);
+
+        // 3. 초기 대기 화면
+        ctx.fillStyle = '#000000';
+        ctx.fillRect(0, 0, 1024, 512);
+        ctx.fillStyle = '#00ff00';
+        ctx.font = 'bold 40px Courier New';
+        ctx.textAlign = 'center';
+        ctx.fillText("SYSTEM READY", 512, 240);
+        ctx.font = '20px Courier New';
+        ctx.fillStyle = '#ffffff';
+        ctx.fillText("Load Music to Start...", 512, 280);
+        vizTexture.needsUpdate = true;
+
+        window.loadMusic = function(input) {
+            const file = input.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const audioLoader = new THREE.AudioLoader();
+                audioLoader.load(e.target.result, function(buffer) {
+                    if(sound.isPlaying) sound.stop();
+                    sound.setBuffer(buffer);
+                    sound.setLoop(true);
+                    sound.setVolume(0.5);
+                    sound.play();
+                    
+                    // 주파수 데이터 (fftSize 128 -> binCount 64)
+                    analyser = new THREE.AudioAnalyser(sound, 128); 
+                    isMusicPlaying = true;
+                    alert(`🎵 ${file.name} 재생 시작! 스크린 패널을 확인하세요.`);
+                });
+            };
+            reader.readAsDataURL(file); 
+            input.value = '';
+        };
+
+        const gui = new lil.GUI({ width: 320, title: '컨트롤 패널' });
+
+        const lightFolder = gui.addFolder('💡 조명 설정');
+        lightFolder.add(dirLight.position, 'x', -20, 20);
+        lightFolder.add(dirLight.position, 'y', 0, 30);
+        lightFolder.add(dirLight.position, 'z', -20, 20);
+        lightFolder.add(dirLight, 'intensity', 0, 3);
+        lightFolder.add(ambientLight, 'intensity', 0, 2);
+        
+        const audioParams = { reactivity: 1.5, colorSpeed: 0.05, baseColor: '#ffffff' };
+        const audioFolder = gui.addFolder('🎵 음악 반응 설정');
+        audioFolder.add(audioParams, 'reactivity', 0, 3).name('💥 반응 강도');
+        audioFolder.add(audioParams, 'colorSpeed', 0.01, 0.2).name('🌈 색상 변화 속도');
+
+        // 바닥
+        const floorMat = new THREE.MeshStandardMaterial({ color: 0xA0522D, roughness: 0.7, metalness: 0.1 });
+        const floor = new THREE.Mesh(new THREE.PlaneGeometry(20, 20), floorMat);
+        floor.rotation.x = -Math.PI/2; floor.receiveShadow = true; scene.add(floor);
+        scene.add(new THREE.AxesHelper(2));
+
+        const loader = new THREE.GLTFLoader();
+        const textureLoader = new THREE.TextureLoader();
+        const loadedModels = {}; 
+        const proxies = {};      
+
+        const savedCam = localStorage.getItem('myRoom_camera');
+        if (savedCam) {
+            const cData = JSON.parse(savedCam);
+            camera.position.set(cData.pos.x, cData.pos.y, cData.pos.z);
+            controls.target.set(cData.target.x, cData.target.y, cData.target.z);
+            controls.update();
+        }
+        controls.addEventListener('change', () => {
+            const camData = {
+                pos: { x: camera.position.x, y: camera.position.y, z: camera.position.z },
+                target: { x: controls.target.x, y: controls.target.y, z: controls.target.z }
+            };
+            localStorage.setItem('myRoom_camera', JSON.stringify(camData));
+        });
+
+        // ------------------------------------------
+        // ★ [유지] 스크린 패널 (2:1 비율)
+        // ------------------------------------------
+        const screenGeo = new THREE.PlaneGeometry(2, 1); 
+        const screenMat = new THREE.MeshBasicMaterial({ 
+            map: vizTexture, 
+            side: THREE.DoubleSide,
+            toneMapped: false 
+        });
+        const screenPanel = new THREE.Mesh(screenGeo, screenMat);
+        screenPanel.position.set(0, 2, 0); 
+        scene.add(screenPanel);
+
+        const screenProxy = { rx: 0, ry: 0, rz: 0, sx: 1, sy: 1 };
+        const screenFolder = gui.addFolder('📺 스크린 패널 (Fake Screen)');
+        
+        const updateScreen = () => {
+            screenPanel.rotation.set(
+                THREE.MathUtils.degToRad(screenProxy.rx),
+                THREE.MathUtils.degToRad(screenProxy.ry),
+                THREE.MathUtils.degToRad(screenProxy.rz)
+            );
+            screenPanel.scale.set(screenProxy.sx, screenProxy.sy, 1);
+            
+            const data = {
+                pos: { x: screenPanel.position.x, y: screenPanel.position.y, z: screenPanel.position.z },
+                rot: { x: screenProxy.rx, y: screenProxy.ry, z: screenProxy.rz },
+                scale: { x: screenProxy.sx, y: screenProxy.sy }
+            };
+            localStorage.setItem('myRoom_screenPanel', JSON.stringify(data));
+        };
+
+        const savedScreen = localStorage.getItem('myRoom_screenPanel');
+        if (savedScreen) {
+            const d = JSON.parse(savedScreen);
+            screenPanel.position.set(d.pos.x, d.pos.y, d.pos.z);
+            screenProxy.rx = d.rot.x; screenProxy.ry = d.rot.y; screenProxy.rz = d.rot.z;
+            screenProxy.sx = d.scale.x; screenProxy.sy = d.scale.y;
+            updateScreen();
+        }
+
+        screenFolder.add(screenPanel.position, 'x', -10, 10, 0.01).name('위치 X').listen().onChange(updateScreen);
+        screenFolder.add(screenPanel.position, 'y', 0, 10, 0.01).name('위치 Y').listen().onChange(updateScreen);
+        screenFolder.add(screenPanel.position, 'z', -10, 10, 0.01).name('위치 Z').listen().onChange(updateScreen);
+        screenFolder.add(screenProxy, 'sx', 0.1, 5).name('가로 크기').listen().onChange(updateScreen);
+        screenFolder.add(screenProxy, 'sy', 0.1, 5).name('세로 크기').listen().onChange(updateScreen);
+        screenFolder.add(screenProxy, 'rx', -180, 180).name('회전 X').listen().onChange(updateScreen);
+        screenFolder.add(screenProxy, 'ry', -180, 180).name('회전 Y').listen().onChange(updateScreen);
+        screenFolder.add(screenProxy, 'rz', -180, 180).name('회전 Z').listen().onChange(updateScreen);
+
+
+        // ------------------------------------------
+        // 배경(Backdrop) 로직
+        // ------------------------------------------
+        let backdropMesh;
+        let currentBackdropData = null; 
+        let currentVideoData = null;    
+        const videoElement = document.getElementById('bg-video-element');
+
+        const backdropProxy = { posX: 0, posY: 5, posZ: -12, scaleX: 16, scaleY: 9 };
+
+        function setupBackdrop() {
+            const geometry = new THREE.PlaneGeometry(1, 1); 
+            const material = new THREE.MeshBasicMaterial({ color: 0xffffff, side: THREE.DoubleSide, toneMapped: false }); 
+            backdropMesh = new THREE.Mesh(geometry, material);
+            backdropMesh.position.set(backdropProxy.posX, backdropProxy.posY, backdropProxy.posZ);
+            backdropMesh.scale.set(backdropProxy.scaleX, backdropProxy.scaleY, 1);
+            scene.add(backdropMesh);
+            
+            const folder = gui.addFolder('🖼️ 배경 (Backdrop)');
+            folder.add(backdropMesh.position, 'x', -20, 20).listen();
+            folder.add(backdropMesh.position, 'y', -10, 20).listen();
+            folder.add(backdropMesh.position, 'z', -30, 10).listen();
+            folder.add(backdropMesh.scale, 'x', 1, 50).listen();
+            folder.add(backdropMesh.scale, 'y', 1, 50).listen();
+        }
+        setupBackdrop();
+
+        window.loadBackdropImage = function(input) {
+            const file = input.files[0];
+            if(!file) return;
+            if (!videoElement.paused) videoElement.pause();
+            currentVideoData = null;
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                currentBackdropData = e.target.result;
+                const image = new Image();
+                image.src = currentBackdropData;
+                image.onload = function() {
+                    const texture = new THREE.Texture(image);
+                    texture.encoding = THREE.sRGBEncoding;
+                    texture.needsUpdate = true;
+                    backdropMesh.material.map = texture;
+                    backdropMesh.material.needsUpdate = true;
+                    backdropMesh.scale.x = backdropMesh.scale.y * (image.width / image.height);
+                };
+            };
+            reader.readAsDataURL(file); input.value = ''; 
+        };
+
+        window.loadBackdropVideo = function(input) {
+            const file = input.files[0];
+            if(!file) return;
+            currentBackdropData = null;
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                currentVideoData = e.target.result;
+                videoElement.src = currentVideoData;
+                videoElement.play();
+                const texture = new THREE.VideoTexture(videoElement);
+                texture.encoding = THREE.sRGBEncoding;
+                backdropMesh.material.map = texture;
+                backdropMesh.material.needsUpdate = true;
+                videoElement.onloadedmetadata = function() {
+                    backdropMesh.scale.x = backdropMesh.scale.y * (videoElement.videoWidth / videoElement.videoHeight);
+                };
+            };
+            reader.readAsDataURL(file); input.value = '';
+        };
+
+        // ------------------------------------------
+        // 에셋 로딩
+        // ------------------------------------------
+        const DEFAULT_COLOR = '#eeeeee'; 
+        
+        // ★★★ [최신화] 예외 처리 목록 (Headphone 추가됨)
+        const EXCLUDED_IDS = [
+            'midi_controller', 'Mixing_Desk', 'speaker1', 'speaker2',
+            'energy_drink1', 'energy_drink2', 'energy_drink3',
+            'monitor1', 'gameboy', 'nintendo', 'camara',
+            'whiteboard', 'Rock_Band_Poster',
+            'Headphone' // ★ NEW
+        ];
+
+        assetList.forEach((item) => {
+            loader.load(item.file, (gltf) => {
+                const model = gltf.scene;
+                model.scale.set(item.scale, item.scale, item.scale);
+                model.traverse(o => { 
+                    if(o.isMesh) {
+                        o.castShadow = true; o.receiveShadow = true;
+                        
+                        // ★ [모니터] 이퀄라이저 재질 적용 (스스로 빛나게)
+                        if (item.id === 'monitor1') {
+                            o.material = new THREE.MeshBasicMaterial({
+                                map: vizTexture, 
+                                toneMapped: false 
+                            });
+                            return; 
+                        }
+
+                        if (EXCLUDED_IDS.includes(item.id)) {
+                            if(o.material.map) o.material.map.encoding = THREE.sRGBEncoding;
+                            return; 
+                        }
+
+                        if (item.id === 'wall_window') {
+                            const isGlass = o.material.name.toLowerCase().includes('glass') || o.material.name.toLowerCase().includes('window');
+                            if (isGlass) {
+                                o.material.transparent = true; o.material.opacity = 0.3; o.material.roughness = 0.1; o.material.metalness = 0.9;
+                                o.material.color.set(0xffffff); o.material.side = THREE.DoubleSide;
+                            } else {
+                                o.material = new THREE.MeshStandardMaterial({ color: DEFAULT_COLOR, roughness: 0.8, metalness: 0.0, map: null, side: THREE.DoubleSide });
+                            }
+                        } else {
+                            o.material = new THREE.MeshStandardMaterial({ color: DEFAULT_COLOR, roughness: 0.8, metalness: 0.0, map: null, side: THREE.DoubleSide });
+                        }
+                    } 
+                });
+                scene.add(model);
+                loadedModels[item.id] = { mesh: model, file: item.file };
+                proxies[item.id] = { rotationDeg: 0, scale: item.scale, color: DEFAULT_COLOR };
+
+                const savedStr = localStorage.getItem(`myRoom_asset_${item.id}`);
+                if (savedStr) {
+                    const saved = JSON.parse(savedStr);
+                    model.position.set(saved.pos.x, saved.pos.y, saved.pos.z);
+                    model.rotation.y = THREE.MathUtils.degToRad(saved.rotDeg);
+                    model.scale.set(saved.scale, saved.scale, saved.scale);
+                    proxies[item.id].rotationDeg = saved.rotDeg;
+                    proxies[item.id].scale = saved.scale;
+                    
+                    if(saved.color && item.id !== 'wall_window' && !EXCLUDED_IDS.includes(item.id)) {
+                        proxies[item.id].color = saved.color;
+                        applyColor(model, saved.color);
+                    }
+                }
+
+                const folder = gui.addFolder(`📦 ${item.id}`);
+                const updateAndSave = () => { saveToLocalStorage(item.id, model, proxies[item.id]); };
+
+                if (item.id !== 'wall_window' && !EXCLUDED_IDS.includes(item.id)) {
+                    folder.addColor(proxies[item.id], 'color').name('🎨 색상 변경').listen().onChange((val) => { applyColor(model, val); updateAndSave(); });
+                }
+                folder.add(model.position, 'x', -20, 20, 0.01).listen().onChange(updateAndSave);
+                folder.add(model.position, 'y', -10, 10, 0.01).listen().onChange(updateAndSave);
+                folder.add(model.position, 'z', -20, 20, 0.01).listen().onChange(updateAndSave);
+                folder.add(proxies[item.id], 'scale', 0.1, 5, 0.01).listen().onChange((val) => { model.scale.set(val, val, val); updateAndSave(); });
+                folder.add(proxies[item.id], 'rotationDeg', 0, 360, 1).listen().onChange((val) => { model.rotation.y = THREE.MathUtils.degToRad(val); updateAndSave(); });
+                folder.add(proxies[item.id], 'rotationDeg').step(1).name('회전 (입력)').listen().onChange((val) => { model.rotation.y = THREE.MathUtils.degToRad(val); updateAndSave(); });
+            });
+        });
+
+        function applyColor(model, colorHex) {
+            model.traverse((o) => {
+                if (o.isMesh && o.material) {
+                    const isExcluded = EXCLUDED_IDS.some(id => model === loadedModels[id]?.mesh);
+                    const isWindow = model === loadedModels['wall_window']?.mesh;
+                    if (isExcluded) return; 
+                    if (isWindow) {
+                         const isGlass = o.material.name.toLowerCase().includes('glass') || o.material.name.toLowerCase().includes('window');
+                         if (isGlass) return; 
+                    }
+                    o.material.color.set(colorHex);
+                }
+            });
+        }
+
+        function saveToLocalStorage(id, model, proxy) {
+            const data = {
+                pos: { x: model.position.x, y: model.position.y, z: model.position.z },
+                rotDeg: proxy.rotationDeg, scale: proxy.scale, color: proxy.color
+            };
+            localStorage.setItem(`myRoom_asset_${id}`, JSON.stringify(data));
+            const msg = document.getElementById('status-msg');
+            msg.style.opacity = 1; setTimeout(() => { msg.style.opacity = 0; }, 1000);
+        }
+
+        window.resetAll = function() {
+            if(confirm("모든 배치를 초기화하시겠습니까?")) { localStorage.clear(); location.reload(); }
+        };
+
+        window.saveToFile = function() {
+            const data = {};
+            for (const [key, obj] of Object.entries(loadedModels)) {
+                const m = obj.mesh; const p = proxies[key];
+                data[key] = { pos: { x: m.position.x, y: m.position.y, z: m.position.z }, rotDeg: p.rotationDeg, scale: p.scale, color: p.color };
+            }
+            data.backdrop = { pos: { x: backdropMesh.position.x, y: backdropMesh.position.y, z: backdropMesh.position.z }, scale: { x: backdropMesh.scale.x, y: backdropMesh.scale.y }, imageData: currentBackdropData, videoData: currentVideoData };
+            data.camera = { pos: { x: camera.position.x, y: camera.position.y, z: camera.position.z }, target: { x: controls.target.x, y: controls.target.y, z: controls.target.z } };
+            data.lights = { sun: { x: dirLight.position.x, y: dirLight.position.y, z: dirLight.position.z, intensity: dirLight.intensity }, ambient: { intensity: ambientLight.intensity } };
+            const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url; a.download = "room_layout_backup.json"; a.click();
+            URL.revokeObjectURL(url);
+        };
+
+        window.loadFromFile = function(input) {
+            const file = input.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    const data = JSON.parse(e.target.result);
+                    if (data.camera) { camera.position.set(data.camera.pos.x, data.camera.pos.y, data.camera.pos.z); controls.target.set(data.camera.target.x, data.camera.target.y, data.camera.target.z); controls.update(); }
+                    if (data.backdrop) {
+                        backdropMesh.position.set(data.backdrop.pos.x, data.backdrop.pos.y, data.backdrop.pos.z);
+                        backdropMesh.scale.set(data.backdrop.scale.x, data.backdrop.scale.y, 1);
+                        if (data.backdrop.videoData) {
+                            currentVideoData = data.backdrop.videoData; currentBackdropData = null;
+                            videoElement.src = currentVideoData; videoElement.play();
+                            backdropMesh.material.map = new THREE.VideoTexture(videoElement);
+                            backdropMesh.material.map.encoding = THREE.sRGBEncoding;
+                            backdropMesh.material.needsUpdate = true;
+                        } else if (data.backdrop.imageData) {
+                            currentBackdropData = data.backdrop.imageData; currentVideoData = null;
+                            const image = new Image(); image.src = currentBackdropData;
+                            image.onload = function() {
+                                if (!videoElement.paused) videoElement.pause();
+                                const tex = new THREE.Texture(image); tex.encoding = THREE.sRGBEncoding; tex.needsUpdate = true;
+                                backdropMesh.material.map = tex; backdropMesh.material.needsUpdate = true;
+                            }
+                        }
+                    }
+                    if (data.lights) { dirLight.position.set(data.lights.sun.x, data.lights.sun.y, data.lights.sun.z); dirLight.intensity = data.lights.sun.intensity; ambientLight.intensity = data.lights.ambient.intensity; }
+                    for (const [key, props] of Object.entries(data)) {
+                        if (['camera', 'backdrop', 'lights'].includes(key)) continue;
+                        const target = loadedModels[key]; const proxy = proxies[key];
+                        if (target && proxy) {
+                            target.mesh.position.set(props.pos.x, props.pos.y, props.pos.z);
+                            target.mesh.rotation.y = THREE.MathUtils.degToRad(props.rotDeg);
+                            target.mesh.scale.set(props.scale, props.scale, props.scale);
+                            if (props.color && key !== 'wall_window' && !EXCLUDED_IDS.includes(key)) { proxy.color = props.color; applyColor(target.mesh, props.color); }
+                            proxy.rotationDeg = props.rotDeg; proxy.scale = props.scale;
+                            saveToLocalStorage(key, target.mesh, proxy);
+                        }
+                    }
+                    input.value = ''; alert(`복구 완료!`);
+                } catch (err) { alert("파일 오류!"); console.error(err); }
+            };
+            reader.readAsText(file);
+        };
+
+        function animate() {
+            requestAnimationFrame(animate);
+            
+            // ★ 막대형(Linear) 이퀄라이저 그리기 ★
+            if (isMusicPlaying && analyser) {
+                const data = analyser.getFrequencyData(); // 64개 데이터
+                const avg = analyser.getAverageFrequency();
+
+                // 1. 조명 반응
+                const intensityBoost = (avg / 256) * audioParams.reactivity; 
+                dirLight.intensity = THREE.MathUtils.lerp(dirLight.intensity, 1.0 + intensityBoost, 0.1);
+                
+                const hue = (Date.now() * 0.0002 + (avg / 1000)) % 1; 
+                const targetColor = new THREE.Color().setHSL(hue, 0.6, 0.5);
+                dirLight.color.lerp(targetColor, audioParams.colorSpeed);
+                ambientLight.color.lerp(targetColor, audioParams.colorSpeed);
+
+                // 2. 캔버스 초기화
+                ctx.fillStyle = '#000000'; 
+                ctx.fillRect(0, 0, 1024, 512); // 전체 지우기
+
+                // 3. 막대 그래프 그리기 (왼쪽 -> 오른쪽 꽉 차게)
+                const bars = data.length; // 64개
+                const barWidth = 1024 / bars; // 캔버스 폭을 N등분
+
+                for (let i = 0; i < bars; i++) {
+                    const value = data[i]; // 0~255
+                    const height = (value / 255) * 512; // 최대 높이 512에 맞춤
+
+                    // 색상 (그라데이션 효과)
+                    const h = (i / bars) * 360 + (Date.now() * 0.05);
+                    ctx.fillStyle = `hsl(${h}, 100%, 50%)`;
+
+                    // 그리기 (x, y, w, h) - 아래에서 위로
+                    ctx.fillRect(i * barWidth, 512 - height, barWidth - 2, height);
+                }
+                
+                // 텍스처 업데이트
+                vizTexture.needsUpdate = true;
+            }
+
+            controls.update();
+            renderer.render(scene, camera);
+        }
+        animate();
+
+        window.exportConfig = function() {
+            alert("콘솔(F12)에 코드가 생성되었습니다.");
+            console.log("// 전체 코드는 위 스크립트를 참고하세요.");
+        };
+
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+    </script>
+</body>
+</html>

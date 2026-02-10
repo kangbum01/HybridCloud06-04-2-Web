@@ -1,0 +1,36 @@
+{
+    "analysis": {
+        "tempo": 144.2,
+        "intensity": 1.0,
+        "brightness": 2100.07,
+        "key_index": 7
+    },
+    "emotion_rankings": [
+        {
+            "mood": "Aggressive / Wild",
+            "confidence": "69.95%"
+        },
+        {
+            "mood": "Tense / Urgent",
+            "confidence": "8.88%"
+        },
+        {
+            "mood": "Joyful / Radiant",
+            "confidence": "8.1%"
+        },
+        {
+            "mood": "Excited / Upbeat",
+            "confidence": "6.56%"
+        },
+        {
+            "mood": "Brave / Epic",
+            "confidence": "6.51%"
+        }
+    ],
+    "palette": {
+        "main": "hsl(231.0, 80%, 45%)",
+        "bg": "hsl(231.0, 20%, 8%)",
+        "accent": "hsl(21.0, 90%, 50%)"
+    },
+    "updated": "2026-01-28T16:28:02.274682"
+}
