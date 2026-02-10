@@ -37,7 +37,7 @@ jobs:
           fi
 
           # 2) Jenkins Job 트리거
-          URL="${JENKINS_URL}/job/${JENKINS_JOB}/buildWithParameters?token=${JENKINS_TRIGGER_TOKEN}&GIT_SHA=${GITHUB_SHA}&GIT_REF=${GITHUB_REF}"
+          URL="${JENKINS_URL}/job/${JENKINS_JOB}/build?token=${JENKINS_TRIGGER_TOKEN}"
 
           if [ -n "${CRUMB_FIELD}" ] && [ -n "${CRUMB}" ]; then
             HTTP_CODE=$(curl -sS -o /dev/null -w "%{http_code}" -X POST \
