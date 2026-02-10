@@ -1,0 +1,58 @@
+name: Trigger Jenkins
+
+on:
+  push:
+    branches: ["main"]
+
+env:
+  JENKINS_URL: ${{ secrets.JENKINS_URL }}
+  JENKINS_USER: ${{ secrets.JENKINS_USER }}
+  JENKINS_API_TOKEN: ${{ secrets.JENKINS_API_TOKEN }}
+  JENKINS_JOB: ${{ secrets.JENKINS_JOB }}
+  JENKINS_TRIGGER_TOKEN: ${{ secrets.JENKINS_TRIGGER_TOKEN }}
+
+jobs:
+  trigger:
+    runs-on: [self-hosted, linux, x64]
+    steps:
+      - name: Trigger Jenkins build
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          echo "[INFO] Jenkins URL: ${JENKINS_URL}"
+          echo "[INFO] Job: ${JENKINS_JOB}"
+          echo "[INFO] Commit: ${GITHUB_SHA}"
+
+          # 1) Crumb 시도 (CSRF 켜진 Jenkins 대비)
+          CRUMB_FIELD=""
+          CRUMB=""
+          if curl -sS -u "${JENKINS_USER}:${JENKINS_API_TOKEN}" \
+              "${JENKINS_URL}/crumbIssuer/api/json" > crumb.json; then
+            CRUMB_FIELD=$(jq -r '.crumbRequestField // empty' crumb.json)
+            CRUMB=$(jq -r '.crumb // empty' crumb.json)
+            echo "[INFO] Crumb fetched: field=${CRUMB_FIELD}"
+          else
+            echo "[WARN] CrumbIssuer not available (CSRF off or blocked). Continue without crumb."
+          fi
+
+          # 2) Jenkins Job 트리거
+          URL="${JENKINS_URL}/job/${JENKINS_JOB}/buildWithParameters?token=${JENKINS_TRIGGER_TOKEN}&GIT_SHA=${GITHUB_SHA}&GIT_REF=${GITHUB_REF}"
+
+          if [ -n "${CRUMB_FIELD}" ] && [ -n "${CRUMB}" ]; then
+            HTTP_CODE=$(curl -sS -o /dev/null -w "%{http_code}" -X POST \
+              -u "${JENKINS_USER}:${JENKINS_API_TOKEN}" \
+              -H "${CRUMB_FIELD}: ${CRUMB}" \
+              "${URL}")
+          else
+            HTTP_CODE=$(curl -sS -o /dev/null -w "%{http_code}" -X POST \
+              -u "${JENKINS_USER}:${JENKINS_API_TOKEN}" \
+              "${URL}")
+          fi
+
+          echo "[INFO] Jenkins trigger HTTP code: ${HTTP_CODE}"
+          # Jenkins는 보통 201/200/302 중 하나가 정상
+          if [ "${HTTP_CODE}" != "200" ] && [ "${HTTP_CODE}" != "201" ] && [ "${HTTP_CODE}" != "302" ]; then
+            echo "[ERROR] Trigger failed. HTTP=${HTTP_CODE}"
+            exit 1
+          fi
