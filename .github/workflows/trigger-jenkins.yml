@@ -24,6 +24,9 @@ jobs:
           echo "[INFO] Job: ${JENKINS_JOB}"
           echo "[INFO] Commit: ${GITHUB_SHA}"
 
+          curl -sS -u "${JENKINS_USER}:${JENKINS_API_TOKEN}" \
+          "${JENKINS_URL}/job/${JENKINS_JOB}/api/json" | head
+
           # 1) Crumb 시도 (CSRF 켜진 Jenkins 대비)
           CRUMB_FIELD=""
           CRUMB=""
