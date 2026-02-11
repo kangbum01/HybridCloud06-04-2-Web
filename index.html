@@ -98,10 +98,15 @@
         .card-db:hover { border-color: #00aaff; box-shadow: 0 0 20px rgba(0, 170, 255, 0.1); }
         .card-web:hover { border-color: #ff00de; box-shadow: 0 0 20px rgba(255, 0, 222, 0.1); }
         .member-avatar { width: 80px; height: 80px; background: #222; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin-right: 25px; border: 2px solid #333; font-size: 32px; flex-shrink: 0; transition: 0.3s; }
-        .member-info { text-align: left; }
+        .member-info { text-align: left; width: 100%; }
         .member-name { font-size: 24px; font-weight: 800; color: #fff; margin-bottom: 5px; }
         .member-role { font-size: 13px; font-weight: 700; margin-bottom: 10px; letter-spacing: 1px; text-transform: uppercase; }
-        .member-contact { font-size: 13px; color: #888; font-family: 'Courier New', monospace; display: flex; align-items: center; gap: 10px; margin-bottom: 3px; }
+        
+        /* 연락처 스타일 (이메일 & 깃허브) */
+        .member-contact { font-size: 13px; color: #888; font-family: 'Courier New', monospace; display: flex; align-items: center; gap: 10px; margin-bottom: 5px; }
+        .member-contact a { color: #888; text-decoration: none; transition: 0.2s; }
+        .member-contact a:hover { color: #fff; text-decoration: underline; }
+
         .role-cicd { color: #ffaa00; } .role-analyze { color: #00ff00; } .role-db { color: #00aaff; } .role-web { color: #ff00de; }
         .card-cicd:hover .member-avatar { border-color: #ffaa00; color: #ffaa00; box-shadow: 0 0 20px rgba(255, 170, 0, 0.3); }
         .card-analyze:hover .member-avatar { border-color: #00ff00; color: #00ff00; box-shadow: 0 0 20px rgba(0, 255, 0, 0.3); }
@@ -130,7 +135,7 @@
                 <span class="theme-label">SELECT VISUAL THEME</span>
                 <div class="theme-selector">
                     <label class="theme-option">
-                        <input type="radio" name="theme" value="theme_sunset.html" onchange="toggleSubOptions()">
+                        <input type="radio" name="theme" value="theme_sunset.html" checked onchange="toggleSubOptions()">
                         <div class="theme-card">
                             <div class="theme-icon">🚗</div>
                             <div class="theme-name">SUNSET DRIVE</div>
@@ -144,7 +149,7 @@
                         </div>
                     </label>
                     <label class="theme-option">
-                        <input type="radio" name="theme" value="theme_video.html" checked onchange="toggleSubOptions()">
+                        <input type="radio" name="theme" value="theme_video.html" onchange="toggleSubOptions()">
                         <div class="theme-card">
                             <div class="theme-icon">🎥</div>
                             <div class="theme-name">AI VIDEO</div>
@@ -259,6 +264,7 @@
                     <div class="member-name">강범석</div>
                     <div class="member-role role-cicd">SERVER/MONITORING</div>
                     <div class="member-contact">📧 alvin852@naver.com</div>
+                    <div class="member-contact">🐱 github.com/아이디</div>
                 </div>
             </div>
             <div class="member-card card-analyze">
@@ -267,6 +273,7 @@
                     <div class="member-name">김자윤</div>
                     <div class="member-role role-analyze">AI ANALYZER</div>
                     <div class="member-contact">📧 rlawkdbs3@naver.com</div>
+                    <div class="member-contact">🐱 github.com/아이디</div>
                 </div>
             </div>
             <div class="member-card card-db">
@@ -275,6 +282,7 @@
                     <div class="member-name">이해연</div>
                     <div class="member-role role-db">DB/DR SERVER</div>
                     <div class="member-contact">📧 lhy30919@naver.com</div>
+                    <div class="member-contact">🐱 github.com/아이디</div>
                 </div>
             </div>
             <div class="member-card card-web">
@@ -283,6 +291,7 @@
                     <div class="member-name">김영성</div>
                     <div class="member-role role-web">FRONTEND</div>
                     <div class="member-contact">📧 leokim1126@naver.com</div>
+                    <div class="member-contact">🐱 github.com/leokim1126</div>
                 </div>
             </div>
         </div>
@@ -299,12 +308,10 @@
         const LOCAL_TEST_JSON = './music_project/theme.json'; 
         let progressInterval = null;
 
-        // ★ [추가됨] 테마 선택 시 서브 옵션 토글 함수
         function toggleSubOptions() {
             const selectedTheme = document.querySelector('input[name="theme"]:checked').value;
             const subSection = document.getElementById('sub-style-section');
             
-            // theme_video.html 선택 시에만 보이게 설정
             if (selectedTheme === 'theme_video.html') {
                 subSection.style.display = 'block';
             } else {
@@ -312,8 +319,14 @@
             }
         }
 
-        // 페이지 로드 시 초기 상태 확인
-        window.addEventListener('load', toggleSubOptions);
+        // 페이지 로드 시 무조건 Sunset Drive 선택 및 초기화
+        window.addEventListener('load', function() {
+            const sunsetRadio = document.querySelector('input[value="theme_sunset.html"]');
+            if (sunsetRadio) {
+                sunsetRadio.checked = true;
+            }
+            toggleSubOptions();
+        });
         
         async function handleUpload(event) { 
             event.preventDefault(); 
@@ -349,7 +362,6 @@
                     
                     const analysisData = await res.json();
                     
-                    // ★ 선택된 비디오 스타일 정보도 함께 저장
                     const selectedStyle = document.querySelector('input[name="video_style"]:checked') ? document.querySelector('input[name="video_style"]:checked').value : 'none';
                     analysisData.selectedVideoStyle = selectedStyle;
 
