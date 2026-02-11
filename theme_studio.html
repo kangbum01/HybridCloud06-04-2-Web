@@ -12,14 +12,7 @@
 
         body { margin: 0; overflow: hidden; background: #1a1a1a; font-family: 'Montserrat', sans-serif; cursor: pointer; }
         
-        .back-btn { 
-            position: absolute; top: 20px; right: 20px; z-index: 100; 
-            padding: 10px 20px; background: rgba(255, 255, 255, 0.1); 
-            border: 1px solid rgba(255,255,255,0.5); color: #fff; 
-            border-radius: 20px; cursor: pointer; transition: 0.3s;
-            text-decoration: none; font-size: 14px; font-weight: bold;
-        }
-        .back-btn:hover { background: #fff; color: #000; }
+        /* 홈 버튼 스타일 삭제됨 */
 
         #result-ui { position: absolute; width: 100%; height: 100%; z-index: 50; pointer-events: none; opacity: 0; transition: opacity 1s; }
         .vibe-badge { position: absolute; bottom: 40px; left: 40px; color: #fff; font-size: 3em; font-weight: 900; mix-blend-mode: screen; text-shadow: 0 0 20px rgba(255,255,255,0.5); }
@@ -49,8 +42,6 @@
     </style>
 </head>
 <body>
-    <a href="index.html" class="back-btn">🏠 HOME</a>
-
     <div id="start-overlay" onclick="startExperience()">
         <div class="start-title">MUSIC STUDIO</div>
         <div class="start-sub">CLICK TO START</div>
@@ -96,7 +87,6 @@
         scene.background = new THREE.Color(0x1a1a1a);
         const camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.01, 1000);
         
-        // 조명
         const initialColor = new THREE.Color("#00dbde");
         const dirLight = new THREE.DirectionalLight(initialColor, 1.0);
         dirLight.position.set(5, 8, 5);
@@ -125,6 +115,15 @@
         floor.rotation.x = -Math.PI/2; floor.receiveShadow = true; scene.add(floor);
 
         // ============================================================
+        // ★ ESC 키 이벤트 리스너 추가
+        // ============================================================
+        window.addEventListener('keydown', (event) => {
+            if (event.key === 'Escape') {
+                window.location.href = 'index.html'; // 초기화면으로 이동
+            }
+        });
+
+        // ============================================================
         // ★ 1. 시작 로직
         // ============================================================
         function startExperience() {
@@ -148,7 +147,7 @@
         }
 
         // ============================================================
-        // ★ 2. 모니터 화면 (검정색 배경)
+        // ★ 2. 모니터 화면 (검정색 고정)
         // ============================================================
         const vizCanvas = document.createElement('canvas');
         vizCanvas.width = 1024; vizCanvas.height = 512;
@@ -156,8 +155,7 @@
         const vizTexture = new THREE.CanvasTexture(vizCanvas);
 
         function drawScreen() {
-            // ★ 배경을 완전 검정색으로 설정
-            ctx.fillStyle = '#000000'; 
+            ctx.fillStyle = '#000000'; // 검정색
             ctx.fillRect(0, 0, 1024, 512);
             
             ctx.fillStyle = '#ffffff';
@@ -311,7 +309,7 @@
         });
 
         // ============================================================
-        // ★ 배경 로드 (비디오)
+        // ★ 5. 배경 로드 (영상)
         // ============================================================
         const analyzedMood = visualData.emotion_rankings[0].mood || "Default";
         
@@ -344,7 +342,7 @@
         }
 
         // ============================================================
-        // ★ 5. 애니메이션 루프 (조명 색상 변화 유지)
+        // ★ 6. 애니메이션 루프
         // ============================================================
         const clock = new THREE.Clock();
         const cycleSpeed = 0.2; 
@@ -353,7 +351,6 @@
             requestAnimationFrame(animate);
             const time = clock.getElapsedTime();
 
-            // 조명 그라데이션
             const cycleIndex = Math.floor(time * cycleSpeed) % colorPalette.length;
             const nextCycleIndex = (cycleIndex + 1) % colorPalette.length;
             const alpha = (time * cycleSpeed) % 1; 
