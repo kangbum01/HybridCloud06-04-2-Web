@@ -10,6 +10,19 @@
         body { background-color: #000; margin: 0; padding: 0; font-family: 'Montserrat', 'Noto Sans KR', sans-serif; width: 100%; overflow-x: hidden; overflow-y: auto; }
         section { width: 100%; min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; position: relative; box-sizing: border-box; padding: 60px 20px; }
 
+        /* ★ [추가됨] 로그인 UI 스타일 */
+        #auth-container { position: absolute; top: 20px; right: 20px; z-index: 1000; display: flex; align-items: center; gap: 15px; }
+        .login-btn { background: rgba(255, 255, 255, 0.1); border: 1px solid rgba(255, 255, 255, 0.5); color: #fff; padding: 10px 20px; border-radius: 20px; cursor: pointer; font-weight: bold; transition: 0.3s; display: flex; align-items: center; gap: 8px; }
+        .login-btn:hover { background: #fff; color: #000; }
+        .google-icon { width: 18px; height: 18px; }
+        
+        /* 로그인 후 프로필 스타일 */
+        #user-profile { display: none; align-items: center; gap: 10px; background: rgba(0, 0, 0, 0.6); padding: 5px 15px 5px 5px; border-radius: 30px; border: 1px solid #333; }
+        .profile-pic { width: 32px; height: 32px; border-radius: 50%; border: 2px solid #00dbde; }
+        .user-name { color: #fff; font-size: 14px; font-weight: bold; margin-right: 5px; }
+        .logout-btn { font-size: 12px; color: #888; cursor: pointer; text-decoration: underline; background: none; border: none; padding: 0; }
+        .logout-btn:hover { color: #ff00de; }
+
         /* SECTION 1: 메인 업로더 */
         #main-section { background: radial-gradient(circle at center, #1a1a1a 0%, #000 100%); z-index: 10; }
         .container { background-color: rgba(0, 0, 0, 0.85); backdrop-filter: blur(12px); padding: 40px; border-radius: 20px; text-align: center; width: 480px; max-width: 90%; border: 1px solid rgba(255, 255, 255, 0.15); z-index: 100; position: relative; box-shadow: 0 0 60px rgba(0,0,0,0.8); }
@@ -37,11 +50,10 @@
         /* 3. Video (Green) */
         .theme-option:nth-child(3) input:checked + .theme-card { border-color: #00ff00; box-shadow: 0 0 20px rgba(0, 255, 0, 0.4); }
 
-        /* [추가됨] 서브 스타일 섹션 (비디오 스타일 선택) */
+        /* 서브 스타일 섹션 */
         #sub-style-section { display: none; margin-bottom: 30px; animation: fadeIn 0.5s; }
         .sub-label { text-align: left; color: #00ff00; font-size: 11px; font-weight: bold; margin-bottom: 8px; display: block; letter-spacing: 1px; }
         
-        /* 서브 카드 스타일 (Green Theme) */
         .sub-option input:checked + .theme-card { border-color: #00ff00; box-shadow: 0 0 15px rgba(0, 255, 0, 0.3); background: linear-gradient(135deg, #1a2e1a, #000); color: #fff; }
         
         @keyframes fadeIn { from { opacity: 0; transform: translateY(-10px); } to { opacity: 1; transform: translateY(0); } }
@@ -101,12 +113,9 @@
         .member-info { text-align: left; width: 100%; }
         .member-name { font-size: 24px; font-weight: 800; color: #fff; margin-bottom: 5px; }
         .member-role { font-size: 13px; font-weight: 700; margin-bottom: 10px; letter-spacing: 1px; text-transform: uppercase; }
-        
-        /* 연락처 스타일 (이메일 & 깃허브) */
         .member-contact { font-size: 13px; color: #888; font-family: 'Courier New', monospace; display: flex; align-items: center; gap: 10px; margin-bottom: 5px; }
         .member-contact a { color: #888; text-decoration: none; transition: 0.2s; }
         .member-contact a:hover { color: #fff; text-decoration: underline; }
-
         .role-cicd { color: #ffaa00; } .role-analyze { color: #00ff00; } .role-db { color: #00aaff; } .role-web { color: #ff00de; }
         .card-cicd:hover .member-avatar { border-color: #ffaa00; color: #ffaa00; box-shadow: 0 0 20px rgba(255, 170, 0, 0.3); }
         .card-analyze:hover .member-avatar { border-color: #00ff00; color: #00ff00; box-shadow: 0 0 20px rgba(0, 255, 0, 0.3); }
@@ -123,6 +132,18 @@
     </style>
 </head>
 <body>
+
+    <div id="auth-container">
+        <button id="google-login-btn" class="login-btn">
+            <img src="https://upload.wikimedia.org/wikipedia/commons/5/53/Google_%22G%22_Logo.svg" class="google-icon" alt="G">
+            LOGIN
+        </button>
+        <div id="user-profile">
+            <img id="user-pic" src="" alt="Profile" class="profile-pic">
+            <span id="user-name" class="user-name"></span>
+            <button id="logout-btn" class="logout-btn">LOGOUT</button>
+        </div>
+    </div>
 
     <section id="main-section">
         <div class="container">
@@ -196,7 +217,6 @@
     <section id="info-section">
         <div class="info-title">테마 소개</div>
         <div class="cards-wrapper">
-            
             <div class="info-card card-sunset">
                 <div class="card-image">
                     <div class="static-bg img-sunset"></div>
@@ -204,16 +224,10 @@
                 </div> 
                 <div class="card-content">
                     <div class="card-title">SUNSET DRIVE</div>
-                    <div class="card-desc">
-                        80년대 신스웨이브 감성을 담아<br>
-                        네온 그리드 위를 질주하는 자동차와 석양을 연출하여,<br>
-                        몽환적이고 속도감 있는 레트로 드라이빙 경험을 <br>
-                        시각적으로 사용자에게 제공합니다.
-                    </div>
+                    <div class="card-desc">80년대 신스웨이브 감성을 담아 네온 그리드 위를 질주하는 자동차와 석양을 연출하여, 몽환적이고 속도감 있는 레트로 드라이빙 경험을 시각적으로 제공합니다.</div>
                     <div class="hashtags hash-sunset">#SYNTHWAVE #RETROWAVE #NIGHTDRIVE</div>
                 </div>
             </div>
-
             <div class="info-card card-studio">
                 <div class="card-image">
                     <div class="static-bg img-studio"></div>
@@ -221,15 +235,10 @@
                 </div>
                 <div class="card-content">
                     <div class="card-title">MUSIC STUDIO</div>
-                    <div class="card-desc">
-                        AI가 분석한 음악의 분위기에 따라<br>
-                        창밖 배경과 실내 조명이 실시간으로 반응하는<br>
-                        나만의 3D 작업실 공간
-                    </div>
+                    <div class="card-desc">AI가 분석한 음악의 분위기에 따라 창밖 배경과 실내 조명이 실시간으로 반응하는 나만의 3D 작업실 공간</div>
                     <div class="hashtags hash-studio">#STUDIO #INTERACTIVE #AI_MOOD</div>
                 </div>
             </div>
-
             <div class="info-card card-video">
                 <div class="card-image">
                     <div class="static-bg img-video"></div>
@@ -237,15 +246,10 @@
                 </div>
                 <div class="card-content">
                     <div class="card-title">AI VIDEO</div>
-                    <div class="card-desc">
-                        음악의 리듬과 감성을 AI가 완벽하게 해석하여,<br>
-                        세상에 단 하나뿐인 고퀄리티 영상을<br>
-                        실시간으로 생성하고 재생합니다.
-                    </div>
+                    <div class="card-desc">음악의 리듬과 감성을 AI가 완벽하게 해석하여, 세상에 단 하나뿐인 고퀄리티 영상을 실시간으로 생성하고 재생합니다.</div>
                     <div class="hashtags hash-video">#GENERATIVE_AI #SORA #VIDEO_ART</div>
                 </div>
             </div>
-
         </div>
         <div class="scroll-hint" onclick="document.getElementById('team-section').scrollIntoView({behavior: 'smooth'})">
             SCROLL FOR TEAM <span>⌄</span>
@@ -291,7 +295,7 @@
                     <div class="member-name">김영성</div>
                     <div class="member-role role-web">FRONTEND</div>
                     <div class="member-contact">📧 leokim1126@naver.com</div>
-                    <div class="member-contact">🐱 github.com/leokim1126</div>
+                    <div class="member-contact">🐱 github.com/아이디</div>
                 </div>
             </div>
         </div>
@@ -304,6 +308,71 @@
         </div>
     </div>
 
+    <script type="module">
+        // Firebase 라이브러리 import
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+        import { getAuth, signInWithPopup, GoogleAuthProvider, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
+
+        // ★★★ [중요] 아래 firebaseConfig를 본인의 키값으로 교체해주세요! ★★★
+        const firebaseConfig = {
+            apiKey: "AIzaSyAaYwHKyqkA-Mzs4DJ87H1Sn_0KGHGmFps",
+            authDomain: "beat-visual.firebaseapp.com",
+            projectId: "beat-visual",
+            storageBucket: "beat-visual.firebasestorage.app",
+            messagingSenderId: "151001850091",
+            appId: "1:151001850091:web:dee4eb4453b03aa06ddeae",
+            measurementId: "G-D3Z472X2V2"
+            };
+
+        // Firebase 초기화
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const provider = new GoogleAuthProvider();
+
+        // DOM 요소
+        const loginBtn = document.getElementById('google-login-btn');
+        const logoutBtn = document.getElementById('logout-btn');
+        const userProfile = document.getElementById('user-profile');
+        const userName = document.getElementById('user-name');
+        const userPic = document.getElementById('user-pic');
+
+        // 로그인 함수
+        loginBtn.addEventListener('click', () => {
+            signInWithPopup(auth, provider)
+                .then((result) => {
+                    console.log("Logged in:", result.user);
+                }).catch((error) => {
+                    console.error("Login failed:", error);
+                    alert("로그인 실패: " + error.message);
+                });
+        });
+
+        // 로그아웃 함수
+        logoutBtn.addEventListener('click', () => {
+            signOut(auth).then(() => {
+                console.log("Logged out");
+                alert("로그아웃 되었습니다.");
+            });
+        });
+
+        // 로그인 상태 감지 (UI 변경)
+        onAuthStateChanged(auth, (user) => {
+            if (user) {
+                // 로그인 됨
+                loginBtn.style.display = 'none';
+                userProfile.style.display = 'flex';
+                userName.innerText = user.displayName;
+                userPic.src = user.photoURL;
+            } else {
+                // 로그아웃 됨
+                loginBtn.style.display = 'flex';
+                userProfile.style.display = 'none';
+                userName.innerText = "";
+                userPic.src = "";
+            }
+        });
+    </script>
+
     <script>
         const LOCAL_TEST_JSON = './music_project/theme.json'; 
         let progressInterval = null;
@@ -311,20 +380,13 @@
         function toggleSubOptions() {
             const selectedTheme = document.querySelector('input[name="theme"]:checked').value;
             const subSection = document.getElementById('sub-style-section');
-            
-            if (selectedTheme === 'theme_video.html') {
-                subSection.style.display = 'block';
-            } else {
-                subSection.style.display = 'none';
-            }
+            if (selectedTheme === 'theme_video.html') subSection.style.display = 'block';
+            else subSection.style.display = 'none';
         }
 
-        // 페이지 로드 시 무조건 Sunset Drive 선택 및 초기화
         window.addEventListener('load', function() {
             const sunsetRadio = document.querySelector('input[value="theme_sunset.html"]');
-            if (sunsetRadio) {
-                sunsetRadio.checked = true;
-            }
+            if (sunsetRadio) sunsetRadio.checked = true;
             toggleSubOptions();
         });
         
@@ -338,9 +400,7 @@
             document.getElementById('loading-section').style.display = 'flex'; 
             startLoadingAnimation();
 
-            setTimeout(() => {
-                fetchAndStart();
-            }, 2000);
+            setTimeout(() => { fetchAndStart(); }, 2000);
         }
 
         function startLoadingAnimation() {
@@ -355,23 +415,16 @@
         async function fetchAndStart() { 
             try { 
                 const res = await fetch(LOCAL_TEST_JSON); 
-                
                 if (res.status === 200) { 
                     clearInterval(progressInterval);
                     document.getElementById('progress-bar').style.width = '100%';
-                    
                     const analysisData = await res.json();
-                    
                     const selectedStyle = document.querySelector('input[name="video_style"]:checked') ? document.querySelector('input[name="video_style"]:checked').value : 'none';
                     analysisData.selectedVideoStyle = selectedStyle;
-
                     localStorage.setItem('visualData', JSON.stringify(analysisData));
-
                     const selectedThemePage = document.querySelector('input[name="theme"]:checked').value;
                     setTimeout(() => { window.location.href = selectedThemePage; }, 500);
-                } else {
-                    throw new Error("Local JSON file not found");
-                }
+                } else { throw new Error("Local JSON file not found"); }
             } catch (e) {
                 alert("테스트 데이터(music_project/theme.json)를 찾을 수 없습니다!");
                 location.reload();
