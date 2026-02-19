@@ -10,7 +10,7 @@
         body { background-color: #000; margin: 0; padding: 0; font-family: 'Montserrat', 'Noto Sans KR', sans-serif; width: 100%; overflow-x: hidden; overflow-y: auto; }
         section { width: 100%; min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; position: relative; box-sizing: border-box; padding: 60px 20px; }
 
-        /* ★ [추가됨] 로그인 UI 스타일 */
+        /* 로그인 UI 스타일 */
         #auth-container { position: absolute; top: 20px; right: 20px; z-index: 1000; display: flex; align-items: center; gap: 15px; }
         .login-btn { background: rgba(255, 255, 255, 0.1); border: 1px solid rgba(255, 255, 255, 0.5); color: #fff; padding: 10px 20px; border-radius: 20px; cursor: pointer; font-weight: bold; transition: 0.3s; display: flex; align-items: center; gap: 8px; }
         .login-btn:hover { background: #fff; color: #000; }
@@ -50,11 +50,29 @@
         /* 3. Video (Green) */
         .theme-option:nth-child(3) input:checked + .theme-card { border-color: #00ff00; box-shadow: 0 0 20px rgba(0, 255, 0, 0.4); }
 
-        /* 서브 스타일 섹션 */
-        #sub-style-section { display: none; margin-bottom: 30px; animation: fadeIn 0.5s; }
-        .sub-label { text-align: left; color: #00ff00; font-size: 11px; font-weight: bold; margin-bottom: 8px; display: block; letter-spacing: 1px; }
-        
-        .sub-option input:checked + .theme-card { border-color: #00ff00; box-shadow: 0 0 15px rgba(0, 255, 0, 0.3); background: linear-gradient(135deg, #1a2e1a, #000); color: #fff; }
+        /* ★ [수정됨] 프롬프트 입력 섹션 */
+        #sub-style-section { display: none; margin-bottom: 30px; animation: fadeIn 0.5s; text-align: left; }
+        .sub-label { color: #00ff00; font-size: 11px; font-weight: bold; margin-bottom: 8px; display: block; letter-spacing: 1px; }
+        #video-prompt { 
+            width: 100%; 
+            padding: 15px; 
+            background: rgba(0, 255, 0, 0.05); 
+            border: 1px solid #00ff00; 
+            border-radius: 10px; 
+            color: #fff; 
+            box-sizing: border-box; 
+            font-family: inherit;
+            font-size: 13px; 
+            resize: none; 
+            outline: none; 
+            transition: 0.3s; 
+            box-shadow: 0 0 10px rgba(0, 255, 0, 0.1);
+        }
+        #video-prompt:focus {
+            background: rgba(0, 255, 0, 0.1);
+            box-shadow: 0 0 20px rgba(0, 255, 0, 0.4);
+        }
+        #video-prompt::placeholder { color: #555; }
         
         @keyframes fadeIn { from { opacity: 0; transform: translateY(-10px); } to { opacity: 1; transform: translateY(0); } }
 
@@ -129,13 +147,39 @@
         .progress-bar { width: 0%; height: 100%; background: linear-gradient(90deg, #ff00de, #00dbde); transition: width 0.1s linear; }
         @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0; } }
         ::-webkit-scrollbar { width: 10px; } ::-webkit-scrollbar-track { background: #111; } ::-webkit-scrollbar-thumb { background: #444; border-radius: 5px; } ::-webkit-scrollbar-thumb:hover { background: #666; }
+
+        /* 모바일 반응형 스타일 */
+        @media screen and (max-width: 768px) {
+            section { padding: 80px 15px 40px 15px; }
+            #auth-container { top: 15px; right: 15px; }
+            .login-btn { padding: 8px 12px; font-size: 12px; }
+            .google-icon { width: 14px; height: 14px; }
+            #user-profile { padding: 3px 10px 3px 3px; }
+            .user-name { font-size: 12px; display: none; }
+            .container { width: 100%; max-width: 100%; padding: 25px 20px; margin-top: 40px; }
+            h1 { font-size: 24px; letter-spacing: 1px; }
+            p { font-size: 11px; margin-bottom: 20px; }
+            .theme-selector { flex-direction: column; gap: 8px; }
+            .theme-card { height: 60px; flex-direction: row; justify-content: flex-start; align-items: center; padding-left: 20px; gap: 15px; }
+            .theme-icon { margin-bottom: 0; font-size: 20px; }
+            .theme-name { font-size: 12px; }
+            .cards-wrapper { flex-direction: column; gap: 20px; }
+            .info-card { min-width: 100%; max-width: 100%; }
+            .card-image { height: 180px; }
+            .team-grid { grid-template-columns: 1fr; gap: 20px; }
+            .member-card { flex-direction: column; text-align: center; padding: 25px; }
+            .member-avatar { margin-right: 0; margin-bottom: 15px; width: 70px; height: 70px; font-size: 28px; }
+            .member-info { text-align: center; }
+            .member-contact { justify-content: center; font-size: 12px; }
+            .team-main-title { font-size: 26px; }
+        }
     </style>
 </head>
 <body>
 
     <div id="auth-container">
         <button id="google-login-btn" class="login-btn">
-            <img src="https://upload.wikimedia.org/wikipedia/commons/5/53/Google_%22G%22_Logo.svg" class="google-icon" alt="G">
+            <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" class="google-icon" alt="G">
             LOGIN
         </button>
         <div id="user-profile">
@@ -179,30 +223,8 @@
                 </div>
 
                 <div id="sub-style-section">
-                    <span class="sub-label">SELECT GENERATION STYLE</span>
-                    <div class="theme-selector">
-                        <label class="theme-option sub-option">
-                            <input type="radio" name="video_style" value="cartoon" checked>
-                            <div class="theme-card">
-                                <div class="theme-icon">🎨</div>
-                                <div class="theme-name">CARTOON</div>
-                            </div>
-                        </label>
-                        <label class="theme-option sub-option">
-                            <input type="radio" name="video_style" value="realistic">
-                            <div class="theme-card">
-                                <div class="theme-icon">📸</div>
-                                <div class="theme-name">REALISTIC</div>
-                            </div>
-                        </label>
-                        <label class="theme-option sub-option">
-                            <input type="radio" name="video_style" value="ghibli">
-                            <div class="theme-card">
-                                <div class="theme-icon">🏰</div>
-                                <div class="theme-name">GHIBLI (ZIBRI)</div>
-                            </div>
-                        </label>
-                    </div>
+                    <span class="sub-label">ENTER PROMPT FOR AI VIDEO</span>
+                    <textarea id="video-prompt" rows="3" placeholder="원하는 영상의 스타일이나 프롬프트를 입력하세요.&#13;&#10;(예: 네온사인이 빛나는 사이버펑크 도시의 비 내리는 밤거리)"></textarea>
                 </div>
 
                 <button type="submit" class="submit-btn">START VISUALIZATION</button>
@@ -225,7 +247,7 @@
                 <div class="card-content">
                     <div class="card-title">SUNSET DRIVE</div>
                     <div class="card-desc">80년대 신스웨이브 감성을 담아 네온 그리드 위를 질주하는 자동차와 석양을 연출하여, 몽환적이고 속도감 있는 레트로 드라이빙 경험을 시각적으로 제공합니다.</div>
-                    <div class="hashtags hash-sunset">#SYNTHWAVE #RETROWAVE #NIGHTDRIVE</div>
+                    <div class="hashtags hash-sunset">#SYNTHWAVE #80's_RETRO_STYLE #SUNSETDRIVE</div>
                 </div>
             </div>
             <div class="info-card card-studio">
@@ -236,7 +258,7 @@
                 <div class="card-content">
                     <div class="card-title">MUSIC STUDIO</div>
                     <div class="card-desc">AI가 분석한 음악의 분위기에 따라 창밖 배경과 실내 조명이 실시간으로 반응하는 나만의 3D 작업실 공간</div>
-                    <div class="hashtags hash-studio">#STUDIO #INTERACTIVE #AI_MOOD</div>
+                    <div class="hashtags hash-studio">#WEATHER_CHANGE #INTERACTIVE #AI_MOOD</div>
                 </div>
             </div>
             <div class="info-card card-video">
@@ -247,7 +269,7 @@
                 <div class="card-content">
                     <div class="card-title">AI VIDEO</div>
                     <div class="card-desc">음악의 리듬과 감성을 AI가 완벽하게 해석하여, 세상에 단 하나뿐인 고퀄리티 영상을 실시간으로 생성하고 재생합니다.</div>
-                    <div class="hashtags hash-video">#GENERATIVE_AI #SORA #VIDEO_ART</div>
+                    <div class="hashtags hash-video">#GENERATIVE_AI #VIDEO_ART #HIGH_QUALITY</div>
                 </div>
             </div>
         </div>
@@ -268,7 +290,7 @@
                     <div class="member-name">강범석</div>
                     <div class="member-role role-cicd">SERVER/MONITORING</div>
                     <div class="member-contact">📧 alvin852@naver.com</div>
-                    <div class="member-contact">🐱 github.com/아이디</div>
+                    <div class="member-contact"><a href="https://github.com/kangbum01" target="_blank">🐱 github.com/kangbum01</a></div>
                 </div>
             </div>
             <div class="member-card card-analyze">
@@ -277,7 +299,7 @@
                     <div class="member-name">김자윤</div>
                     <div class="member-role role-analyze">AI ANALYZER</div>
                     <div class="member-contact">📧 rlawkdbs3@naver.com</div>
-                    <div class="member-contact">🐱 github.com/아이디</div>
+                    <div class="member-contact"><a href="https://github.com/JAYUN-KIM" target="_blank">🐱 github.com/JAYUN-KIM</a></div>
                 </div>
             </div>
             <div class="member-card card-db">
@@ -286,7 +308,7 @@
                     <div class="member-name">이해연</div>
                     <div class="member-role role-db">DB/DR SERVER</div>
                     <div class="member-contact">📧 lhy30919@naver.com</div>
-                    <div class="member-contact">🐱 github.com/아이디</div>
+                    <div class="member-contact"><a href="https://github.com/아이디" target="_blank">🐱 github.com/아이디</a></div>
                 </div>
             </div>
             <div class="member-card card-web">
@@ -295,7 +317,7 @@
                     <div class="member-name">김영성</div>
                     <div class="member-role role-web">FRONTEND</div>
                     <div class="member-contact">📧 leokim1126@naver.com</div>
-                    <div class="member-contact">🐱 github.com/아이디</div>
+                    <div class="member-contact"><a href="https://github.com/leokim1126" target="_blank">🐱 github.com/leokim1126</a></div>
                 </div>
             </div>
         </div>
@@ -309,11 +331,9 @@
     </div>
 
     <script type="module">
-        // Firebase 라이브러리 import
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
         import { getAuth, signInWithPopup, GoogleAuthProvider, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
 
-        // ★★★ [중요] 아래 firebaseConfig를 본인의 키값으로 교체해주세요! ★★★
         const firebaseConfig = {
             apiKey: "AIzaSyAaYwHKyqkA-Mzs4DJ87H1Sn_0KGHGmFps",
             authDomain: "beat-visual.firebaseapp.com",
@@ -322,21 +342,18 @@
             messagingSenderId: "151001850091",
             appId: "1:151001850091:web:dee4eb4453b03aa06ddeae",
             measurementId: "G-D3Z472X2V2"
-            };
+        };
 
-        // Firebase 초기화
         const app = initializeApp(firebaseConfig);
         const auth = getAuth(app);
         const provider = new GoogleAuthProvider();
 
-        // DOM 요소
         const loginBtn = document.getElementById('google-login-btn');
         const logoutBtn = document.getElementById('logout-btn');
         const userProfile = document.getElementById('user-profile');
         const userName = document.getElementById('user-name');
         const userPic = document.getElementById('user-pic');
 
-        // 로그인 함수
         loginBtn.addEventListener('click', () => {
             signInWithPopup(auth, provider)
                 .then((result) => {
@@ -347,7 +364,6 @@
                 });
         });
 
-        // 로그아웃 함수
         logoutBtn.addEventListener('click', () => {
             signOut(auth).then(() => {
                 console.log("Logged out");
@@ -355,16 +371,13 @@
             });
         });
 
-        // 로그인 상태 감지 (UI 변경)
         onAuthStateChanged(auth, (user) => {
             if (user) {
-                // 로그인 됨
                 loginBtn.style.display = 'none';
                 userProfile.style.display = 'flex';
                 userName.innerText = user.displayName;
                 userPic.src = user.photoURL;
             } else {
-                // 로그아웃 됨
                 loginBtn.style.display = 'flex';
                 userProfile.style.display = 'none';
                 userName.innerText = "";
@@ -419,11 +432,17 @@
                     clearInterval(progressInterval);
                     document.getElementById('progress-bar').style.width = '100%';
                     const analysisData = await res.json();
-                    const selectedStyle = document.querySelector('input[name="video_style"]:checked') ? document.querySelector('input[name="video_style"]:checked').value : 'none';
-                    analysisData.selectedVideoStyle = selectedStyle;
+                    
+                    // ★ [수정됨] 텍스트 박스에 입력된 값을 가져와서 저장
+                    const selectedTheme = document.querySelector('input[name="theme"]:checked').value;
+                    if (selectedTheme === 'theme_video.html') {
+                        const promptText = document.getElementById('video-prompt').value;
+                        analysisData.userPrompt = promptText; // 입력된 프롬프트를 데이터에 추가
+                    }
+
                     localStorage.setItem('visualData', JSON.stringify(analysisData));
-                    const selectedThemePage = document.querySelector('input[name="theme"]:checked').value;
-                    setTimeout(() => { window.location.href = selectedThemePage; }, 500);
+                    
+                    setTimeout(() => { window.location.href = selectedTheme; }, 500);
                 } else { throw new Error("Local JSON file not found"); }
             } catch (e) {
                 alert("테스트 데이터(music_project/theme.json)를 찾을 수 없습니다!");
