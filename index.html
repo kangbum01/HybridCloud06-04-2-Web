@@ -387,10 +387,8 @@
     </script>
 
     <script>
-        // AI 서버 및 S3 주소
-        const AI_API_URL = 'http://172.16.6.81:8000/upload'; 
-        const S3_BASE_URL = 'https://ai-project-result.s3.ap-northeast-2.amazonaws.com/results';
-        
+        // 1. WAS 주소 설정 (전달받은 IP로 변경)
+        const WAS_API_URL = 'http://10.1.103.172:8080/api/jobs';
         let progressInterval = null;
 
         function toggleSubOptions() {
@@ -428,12 +426,13 @@
             }, 100);
         }
 
+        // [1단계] WAS에 파일 업로드 (key=file)
         async function fetchAndStart(file) { 
             try { 
-                console.log("1. AI 서버에 파일 전송 중...");
+                console.log("1. WAS 서버로 파일 전송 중...");
 
                 const formData = new FormData();
-                formData.append("file", file);
+                formData.append("file", file); // 팀원분이 요청한 key값 'file'
 
                 const selectedTheme = document.querySelector('input[name="theme"]:checked').value;
                 let version = "1";
@@ -449,87 +448,83 @@
                     if (promptText.trim() !== "") formData.append("user_request", promptText);
                 }
 
-                const res = await fetch(AI_API_URL, {
+                const res = await fetch(WAS_API_URL, {
                     method: 'POST',
                     body: formData
                 }); 
 
-                if (!res.ok) throw new Error(`AI 서버 통신 에러 (상태 코드: ${res.status})`);
+                if (!res.ok) throw new Error(`WAS 업로드 실패 (상태 코드: ${res.status})`);
 
-                const aiResponse = await res.json();
-                const taskId = aiResponse.task_id;
-                if (!taskId) throw new Error("AI 서버에서 Task ID를 받지 못했습니다!");
+                const wasResponse = await res.json();
+                const jobId = wasResponse.job_id || wasResponse.task_id;
+                
+                if (!jobId) throw new Error("WAS에서 Job ID를 받지 못했습니다!");
 
-                console.log(`접수 완료! 부여받은 대기표 번호: ${taskId}`);
+                console.log(`접수 완료! 작업 ID: ${jobId}`);
                 
-                // ★ [핵심] 사용자가 올린 원본 파일의 확장자를 따서 S3 오디오 주소 만들기
-                const fileExt = file.name.substring(file.name.lastIndexOf('.')); // 예: .mp3
-                const audioS3Url = `${S3_BASE_URL}/audio_${taskId}${fileExt}`;
-                
-                pollS3ForResult(taskId, selectedTheme, promptText, version, audioS3Url);
+                // 2단계: WAS 결과 수신 대기 (Polling)
+                pollWasForResult(jobId, selectedTheme, promptText, version);
 
             } catch (e) {
                 console.error(e);
-                alert("AI 서버 접속 중 오류가 발생했습니다.\n콘솔창(F12)을 확인해주세요.");
+                alert("WAS 서버 통신 중 오류가 발생했습니다.\n콘솔창(F12)을 확인해주세요.");
                 location.reload(); 
             } 
         }
 
-        // [2단계] S3 버킷 폴링 및 결과 저장
-        function pollS3ForResult(taskId, selectedTheme, promptText, version, audioS3Url) {
-            console.log("2. S3 버킷에서 파일 업로드 대기 중...");
-            
-            let fileName = "";
-            if (version === "1" || version === "2") fileName = `result_v${version}_${taskId}.json`;
-            else if (version === "3") fileName = `final_v3_${taskId}.mp4`;
-
-            const expectedS3Url = `${S3_BASE_URL}/${fileName}`;
+        // [2단계] WAS 폴링 (JSON + 파일 통합 수신)
+        function pollWasForResult(jobId, selectedTheme, promptText, version) {
+            const pollUrl = `${WAS_API_URL}/${jobId}`;
+            console.log("2. WAS 결과 대기 중...", pollUrl);
             
             const pollTimer = setInterval(async () => {
                 try {
-                    const fetchUrl = `${expectedS3Url}?t=${new Date().getTime()}`;
-                    const response = await fetch(fetchUrl, { method: 'HEAD' });
+                    const response = await fetch(pollUrl);
                     
                     if (response.status === 200) {
-                        console.log("🎉 S3 업로드 확인 완료! 데이터 수신 준비 끝!");
+                        const result = await response.json();
+                        
+                        // WAS 상태 체크 (처리 중이면 대기)
+                        if (result.status === "PROCESSING" || result.status === "PENDING") {
+                            console.log("WAS가 열심히 분석 중입니다...");
+                            return;
+                        }
+
+                        console.log("🎉 분석 및 파일 준비 완료!");
                         
                         clearInterval(pollTimer);
                         clearInterval(progressInterval);
                         document.getElementById('progress-bar').style.width = '100%';
-                        
-                        let finalData = {};
 
-                        if (version === "3") {
-                            finalData = {
-                                videoUrl: expectedS3Url, 
-                                userPrompt: promptText,
-                                audioUrl: audioS3Url // ★ 오디오 S3 주소 포함
-                            };
-                        } else {
-                            const getRes = await fetch(fetchUrl);
-                            const rawData = await getRes.json();
-                            
-                            finalData = {
-                                raw_ai_data: rawData,
-                                bpm: rawData.basic_metrics ? rawData.basic_metrics.bpm : 120,
-                                highlight_sec: rawData.basic_metrics ? rawData.basic_metrics.highlight_sec : 0,
-                                energy: rawData.mood_and_vibe ? rawData.mood_and_vibe.energy_score : 50,
-                                brightness: rawData.mood_and_vibe ? rawData.mood_and_vibe.brightness_score : 50,
-                                genres: rawData.ai_top_predictions ? rawData.ai_top_predictions.map(item => item.label) : [],
-                                topGenre: rawData.ai_top_predictions ? rawData.ai_top_predictions[0].label : "Unknown",
-                                probability: rawData.ai_top_predictions ? rawData.ai_top_predictions[0].probability : 0,
-                                audioUrl: audioS3Url // ★ 오디오 S3 주소 포함
-                            };
-                        }
+                        // 테마 페이지용 데이터 평탄화 매핑
+                        const analysis = result.analysis_result || {};
+                        const files = result.files || {};
+
+                        const finalData = {
+                            bpm: analysis.bpm || 120,
+                            energy: analysis.energy_score || analysis.energy || 50,
+                            brightness: analysis.brightness_score || analysis.brightness || 50,
+                            topGenre: (analysis.genres && analysis.genres.length > 0) ? analysis.genres[0] : "Unknown",
+                            probability: analysis.probability || 100,
+                            // 파일 URL: WAS가 알려준 주소를 쓰거나, WAS 주소 하위 경로로 예측
+                            audioUrl: files.audio_url || `${pollUrl}/audio`,
+                            videoUrl: files.video_url || `${pollUrl}/video`,
+                            userPrompt: promptText,
+                            version: version
+                        };
+
+                        console.log("넘겨줄 최종 데이터:", finalData);
 
                         localStorage.setItem('visualData', JSON.stringify(finalData));
                         setTimeout(() => { window.location.href = selectedTheme; }, 500);
                         
+                    } else if (response.status === 404) {
+                        console.log("작업을 찾는 중... (아직 생성되지 않음)");
                     } else {
-                        console.log("AI가 열심히 작업 중입니다... (S3 파일 없음)");
+                        console.log("결과 대기 중... (Status:", response.status, ")");
                     }
                 } catch (error) {
-                    console.error("S3 확인 중 에러 (네트워크 지연):", error);
+                    console.error("WAS 확인 중 에러:", error);
                 }
             }, 3000); 
         }
