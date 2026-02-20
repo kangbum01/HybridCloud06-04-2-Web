@@ -19,7 +19,6 @@
         body { background-color: #000; margin: 0; padding: 0; overflow: hidden; font-family: 'Montserrat', sans-serif; cursor: pointer; }
         #visualization-container { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 1; }
         
-        /* 결과 화면 UI (기본 opacity 0) */
         #result-ui { position: absolute; width: 100%; height: 100%; z-index: 50; pointer-events: none; opacity: 0; transition: opacity 1s; }
         .vibe-badge { position: absolute; bottom: 40px; left: 40px; color: #fff; font-size: 3em; font-weight: 900; mix-blend-mode: screen; text-shadow: 0 0 20px rgba(255,255,255,0.5); }
         .vibe-sub { font-size: 14px; display: block; margin-top: 5px; opacity: 0.8; letter-spacing: 2px; }
@@ -28,7 +27,6 @@
         .stat-row { margin-bottom: 6px; color: rgba(255, 255, 255, 0.6); font-size: 12px; letter-spacing: 1px; }
         .stat-value { color: #00dbde; font-weight: bold; font-size: 14px; margin-left: 10px; }
 
-        /* 시작 오버레이 */
         #start-overlay {
             position: fixed; top: 0; left: 0; width: 100%; height: 100%;
             background: rgba(0,0,0,0.85); z-index: 9999;
@@ -40,13 +38,11 @@
         .start-sub { color: #ff00de; font-size: 14px; letter-spacing: 2px; animation: blink 1.5s infinite; margin-bottom: 30px; }
         @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
 
-        /* 정보 표시 체크박스 스타일 */
         .option-container { display: flex; align-items: center; gap: 10px; pointer-events: auto; }
         .option-label { color: #888; font-size: 12px; letter-spacing: 1px; transition: 0.3s; }
         input[type="checkbox"] { accent-color: #ff00de; cursor: pointer; width: 16px; height: 16px; }
         input[type="checkbox"]:checked + .option-label { color: #ff00de; font-weight: bold; }
 
-        /* 오디오 숨김 */
         #audio-player { display: none; }
     </style>
 </head>
@@ -61,7 +57,7 @@
         </div>
     </div>
 
-    <audio id="audio-player" src="./music_project/test.mp3" loop></audio>
+    <audio id="audio-player" crossorigin="anonymous" loop></audio>
 
     <div id="visualization-container"></div>
     
@@ -71,16 +67,12 @@
     </div>
 
     <script>
-        // ============================================================
-        // ★ 0. 전역 변수 및 시작 로직
-        // ============================================================
         const audioPlayer = document.getElementById('audio-player');
         const startOverlay = document.getElementById('start-overlay');
         const resultUi = document.getElementById('result-ui');
         const infoCheckbox = document.getElementById('show-info-check');
         let isPlaying = false; 
 
-        // ★ ESC 키 이벤트 리스너 추가 (홈 이동)
         window.addEventListener('keydown', (event) => {
             if (event.key === 'Escape') {
                 window.location.href = 'index.html';
@@ -91,12 +83,8 @@
             startOverlay.style.opacity = '0';
             setTimeout(() => { startOverlay.style.display = 'none'; }, 500);
             
-            // 체크박스 상태에 따라 UI 표시 여부 결정
-            if (infoCheckbox.checked) {
-                resultUi.style.opacity = '1';
-            } else {
-                resultUi.style.opacity = '0';
-            }
+            if (infoCheckbox.checked) resultUi.style.opacity = '1';
+            else resultUi.style.opacity = '0';
             
             audioPlayer.play().then(() => {
                 console.log("Audio playing...");
@@ -108,48 +96,64 @@
         }
 
         // ============================================================
-        // ★ 1. 데이터 로드 및 파싱 (새로운 구조 적용)
+        // ★ [추가된 헬퍼 함수] HSL 색상을 HEX 코드로 완벽하게 변환해줍니다.
+        // ============================================================
+        function hslToHex(h, s, l) {
+            l /= 100;
+            const a = s * Math.min(l, 1 - l) / 100;
+            const f = n => {
+                const k = (n + h / 30) % 12;
+                const color = l - a * Math.max(Math.min(k - 3, 9 - k, 1), -1);
+                return Math.round(255 * color).toString(16).padStart(2, '0');
+            };
+            return `#${f(0)}${f(8)}${f(4)}`;
+        }
+
+        // ============================================================
+        // ★ 1. 데이터 로드 및 [초민감 다이나믹 색상 로직] 적용
         // ============================================================
         let rawData = JSON.parse(localStorage.getItem('visualData'));
 
-        // 원본 JSON이 없거나 통신 에러일 경우를 대비한 방어적 기본값 설정
         let aiData = {
-            bpm: 120,
-            energy: 50,
-            brightness: 50,
-            topGenre: "SYNTHWAVE",
-            probability: 100,
-            palette: { main: "#ff00de", accent: "#00dbde" } // Sunset 테마의 기본 컬러
+            bpm: 120, energy: 50, brightness: 50,
+            topGenre: "SYNTHWAVE", probability: 100,
+            palette: { main: "#ff00de", accent: "#00dbde" } 
         };
 
         if (rawData) {
-            // 새 데이터 구조에서 값 추출
-            aiData.bpm = (rawData.basic_metrics && rawData.basic_metrics.bpm) ? rawData.basic_metrics.bpm : 120;
-            aiData.energy = (rawData.mood_and_vibe && rawData.mood_and_vibe.energy_score) ? rawData.mood_and_vibe.energy_score : 50;
-            aiData.brightness = (rawData.mood_and_vibe && rawData.mood_and_vibe.brightness_score) ? rawData.mood_and_vibe.brightness_score : 50;
-            
-            if (rawData.ai_top_predictions && rawData.ai_top_predictions.length > 0) {
-                aiData.topGenre = rawData.ai_top_predictions[0].label;
-                aiData.probability = rawData.ai_top_predictions[0].probability;
-            }
+            aiData.bpm = rawData.bpm !== undefined ? rawData.bpm : 120;
+            aiData.energy = rawData.energy !== undefined ? rawData.energy : 50;
+            aiData.brightness = rawData.brightness !== undefined ? rawData.brightness : 50;
+            aiData.topGenre = rawData.topGenre || "SYNTHWAVE";
+            aiData.probability = rawData.probability !== undefined ? rawData.probability : 100;
 
-            // 장르에 따른 테마 색상 (Sunset Drive에 어울리게 세팅)
-            const genreLower = aiData.topGenre.toLowerCase();
-            if (genreLower.includes("electronic") || aiData.energy > 80) {
-                aiData.palette = { main: "#ff00de", accent: "#00dbde" }; // 핫핑크 & 형광파랑
-            } else if (genreLower.includes("pop") || aiData.brightness > 80) {
-                aiData.palette = { main: "#ffaa00", accent: "#ff00de" }; // 주황 & 핫핑크
-            } else {
-                aiData.palette = { main: "#ff0055", accent: "#0055ff" }; // 기본
+            const bpm = aiData.bpm;
+            const energy = aiData.energy;
+            const brightness = aiData.brightness;
+
+            // ★ [핵심] BPM과 Energy의 소수점 차이까지 색상환(0~360도)에 곱해서 증폭시킵니다.
+            let dynamicHue1 = Math.floor((bpm * 5.5 + energy * 3.14 + brightness * 2.7) % 360);
+            
+            // 두 번째 색상은 첫 번째 색상에서 160도 정도 떨어진 보색(반대편 색)으로 설정하여 쨍한 대비를 만듭니다.
+            let dynamicHue2 = Math.floor((dynamicHue1 + 160 + (brightness * 0.5)) % 360);
+
+            // 레트로 네온 감성을 잃지 않도록 채도(Saturation)는 85~100%, 명도(Lightness)는 50~55%로 강제 고정합니다.
+            let sat1 = Math.floor(85 + (energy % 15)); 
+            let sat2 = Math.floor(85 + (brightness % 15));
+
+            aiData.palette = { 
+                main: hslToHex(dynamicHue1, sat1, 55), 
+                accent: hslToHex(dynamicHue2, sat2, 50) 
+            };
+
+            if (rawData.audioUrl) {
+                audioPlayer.src = rawData.audioUrl;
             }
         }
 
         renderUI(aiData);
         startSunsetDrive(aiData);
 
-        // ============================================================
-        // ★ 2. UI 렌더링
-        // ============================================================
         function renderUI(data) {
             document.getElementById('vibe-display').innerHTML = `${data.topGenre.toUpperCase()}<span class="vibe-sub">CONFIDENCE: ${data.probability.toFixed(1)}%</span>`; 
             
@@ -209,7 +213,6 @@
                 const delta = clock.getDelta();
                 const time = clock.getElapsedTime();
                 
-                // 에너지 스코어(0~100)를 0~1 사이 값으로 변환
                 let baseIntensity = data.energy / 100;
                 let intensity = baseIntensity;
 
@@ -235,9 +238,6 @@
             animate();
         }
 
-        // ============================================================
-        // 🚗 SUNSET DRIVE THEME LOGIC
-        // ============================================================
         function createGridTexture(color) {
             const canvas = document.createElement('canvas'); canvas.width = 1024; canvas.height = 1024;
             const ctx = canvas.getContext('2d');
@@ -286,13 +286,11 @@
                 const road = scene.getObjectByName('road');
                 const carGroup = scene.getObjectByName('car');
 
-                // BPM을 기반으로 도로가 흘러가는 속도 계산
                 const baseSpeed = (bpm / 60) * 1.5;
                 const currentSpeed = isPlaying ? (baseSpeed + (intensity * 2.0)) : (baseSpeed * 0.3);
                 
                 road.material.map.offset.y -= currentSpeed * delta * 0.5;
                 
-                // 음악 강도(intensity)에 따라 태양 크기 펄스 효과
                 const sunPulse = isPlaying ? (Math.sin(time * 10) * 0.05 * intensity) : 0;
                 const sunScale = 1 + sunPulse;
                 sun.scale.set(sunScale, sunScale, 1);

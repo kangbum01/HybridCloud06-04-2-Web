@@ -51,17 +51,17 @@
     </div>
 
     <video id="bg-video" loop muted playsinline style="display:none;"></video>
-    <audio id="audio-player" src="./music_project/test.mp3" loop></audio>
+    
+    <audio id="audio-player" crossorigin="anonymous" src="./music_project/test.mp3" loop></audio>
 
     <div id="result-ui">
-        <div id="music-stats-container" class="music-stats">
-            </div>
+        <div id="music-stats-container" class="music-stats"></div>
         <div id="vibe-display" class="vibe-badge"></div>
     </div>
 
     <script>
         // ============================================================
-        // ★ 0. 초기 설정
+        // ★ 0. 초기 설정 및 헬퍼 함수
         // ============================================================
         const EXCLUDED_IDS = [ 
             'midi_controller', 'Mixing_Desk', 'speaker1', 'speaker2', 
@@ -77,19 +77,29 @@
         
         let isPlaying = false;
 
+        function hslToHex(h, s, l) {
+            l /= 100;
+            const a = s * Math.min(l, 1 - l) / 100;
+            const f = n => {
+                const k = (n + h / 30) % 12;
+                const color = l - a * Math.max(Math.min(k - 3, 9 - k, 1), -1);
+                return Math.round(255 * color).toString(16).padStart(2, '0');
+            };
+            return `#${f(0)}${f(8)}${f(4)}`;
+        }
+
         const scene = new THREE.Scene();
         scene.background = new THREE.Color(0x1a1a1a);
         const camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.01, 1000);
         
-        const initialColor = new THREE.Color("#00dbde");
-        const dirLight = new THREE.DirectionalLight(initialColor, 1.0);
+        const dirLight = new THREE.DirectionalLight(0xffffff, 1.0);
         dirLight.position.set(5, 8, 5);
         dirLight.castShadow = true; 
         dirLight.shadow.mapSize.width = 2048; 
         dirLight.shadow.mapSize.height = 2048;
         scene.add(dirLight);
 
-        const ambientLight = new THREE.AmbientLight(initialColor, 0.4); 
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.4); 
         scene.add(ambientLight);
 
         const renderer = new THREE.WebGLRenderer({ antialias: true });
@@ -108,65 +118,75 @@
         const floor = new THREE.Mesh(new THREE.PlaneGeometry(20, 20), floorMat);
         floor.rotation.x = -Math.PI/2; floor.receiveShadow = true; scene.add(floor);
 
-        // ESC 키로 홈으로 이동
         window.addEventListener('keydown', (event) => {
-            if (event.key === 'Escape') {
-                window.location.href = 'index.html'; 
-            }
+            if (event.key === 'Escape') window.location.href = 'index.html'; 
         });
 
+        const listener = new THREE.AudioListener();
+        camera.add(listener);
+        const sound = new THREE.Audio(listener);
+        let analyser = null;
+
+        audioPlayer.onplay = () => {
+            const context = listener.context;
+            if (context.state === 'suspended') context.resume();
+            if (!sound.source) {
+                const source = context.createMediaElementSource(audioPlayer);
+                sound.setNodeSource(source);
+                analyser = new THREE.AudioAnalyser(sound, 128);
+            }
+        };
+
         // ============================================================
-        // ★ 1. 데이터 로드 및 파싱 (새로운 구조 적용)
+        // ★ 1. 데이터 로드 및 다이나믹 로직 적용
         // ============================================================
         let rawData = JSON.parse(localStorage.getItem('visualData'));
         
-        // 원본 JSON이 없을 경우를 대비한 기본값
         let aiData = {
-            bpm: 120,
-            energy: 50,
-            brightness: 50,
-            topGenre: "Unknown",
-            probability: 0
+            bpm: 120, energy: 50, brightness: 50, topGenre: "Unknown", probability: 0
         };
 
+        let colorPalette = [new THREE.Color("#00dbde"), new THREE.Color("#ff00de")];
+
         if (rawData) {
-            // 새 데이터 구조에서 값을 뽑아옴 (방어적 코드)
-            aiData.bpm = (rawData.basic_metrics && rawData.basic_metrics.bpm) ? rawData.basic_metrics.bpm : 120;
-            aiData.energy = (rawData.mood_and_vibe && rawData.mood_and_vibe.energy_score) ? rawData.mood_and_vibe.energy_score : 50;
-            aiData.brightness = (rawData.mood_and_vibe && rawData.mood_and_vibe.brightness_score) ? rawData.mood_and_vibe.brightness_score : 50;
-            
-            if (rawData.ai_top_predictions && rawData.ai_top_predictions.length > 0) {
-                aiData.topGenre = rawData.ai_top_predictions[0].label;
-                aiData.probability = rawData.ai_top_predictions[0].probability;
+            aiData.bpm = rawData.bpm !== undefined ? rawData.bpm : 120;
+            aiData.energy = rawData.energy !== undefined ? rawData.energy : 50;
+            aiData.brightness = rawData.brightness !== undefined ? rawData.brightness : 50;
+            aiData.topGenre = rawData.topGenre || "Unknown";
+            aiData.probability = rawData.probability !== undefined ? rawData.probability : 0;
+
+            if (rawData.audioUrl) {
+                audioPlayer.src = rawData.audioUrl;
             }
+
+            // 초민감 다이나믹 색상 생성
+            let h1 = Math.floor((aiData.bpm * 4.3 + aiData.energy * 2.8 + aiData.brightness * 3.1) % 360);
+            let h2 = Math.floor((h1 + 120) % 360);
+            let h3 = Math.floor((h1 + 240) % 360);
+            
+            let s = Math.floor(75 + (aiData.energy % 25));
+            let l = Math.floor(50 + (aiData.brightness % 15));
+
+            colorPalette = [
+                new THREE.Color(hslToHex(h1, s, l)),
+                new THREE.Color(hslToHex(h2, s, l)),
+                new THREE.Color(hslToHex(h3, s, l))
+            ];
+
+            aiData.mainColor = hslToHex(h1, s, l);
+        } else {
+            aiData.mainColor = "#00dbde";
         }
 
-        // ============================================================
-        // ★ 2. UI 및 색상 팔레트 세팅
-        // ============================================================
-        // 장르에 따른 테마 색상 지정 (임의의 로직 - 원하시는 대로 수정 가능)
-        let tColor = "#00dbde"; // 기본 Cyan 색상
-        if (aiData.topGenre.toLowerCase().includes("pop") || aiData.topGenre.toLowerCase().includes("disco")) {
-            tColor = "#ff00de"; // Pop/Disco는 Pink
-        } else if (aiData.topGenre.toLowerCase().includes("electronic")) {
-            tColor = "#00ff00"; // Electronic은 Green
-        }
-
-        let colorPalette = [
-            new THREE.Color(tColor),
-            new THREE.Color(tColor).offsetHSL(0.1, 0, 0)
-        ];
-
-        // UI 업데이트
         document.getElementById('vibe-display').innerHTML = `${aiData.topGenre.toUpperCase()}<span class="vibe-sub">CONFIDENCE: ${aiData.probability.toFixed(1)}%</span>`; 
         document.getElementById('music-stats-container').innerHTML = `
             <div class="stat-row">TEMPO <span class="stat-value">${aiData.bpm.toFixed(0)} BPM</span></div>
             <div class="stat-row">ENERGY <span class="stat-value">${aiData.energy.toFixed(0)} %</span></div>
-            <div class="stat-row">BRIGHT <span class="stat-value">${aiData.brightness.toFixed(0)} %</span></div>
+            <div class="stat-row">THEME <span class="stat-value" style="color:${aiData.mainColor}">${aiData.mainColor}</span></div>
         `;
 
         // ============================================================
-        // ★ 3. 시작 및 배경 로직 
+        // ★ 2. 시작 로직
         // ============================================================
         function startExperience() {
             startOverlay.style.opacity = '0';
@@ -176,10 +196,8 @@
             else resultUi.style.opacity = '0';
 
             audioPlayer.play().then(() => {
-                console.log("Music Playing...");
                 isPlaying = true;
             }).catch(e => {
-                console.log("Playback error:", e);
                 isPlaying = true;
             });
 
@@ -188,7 +206,6 @@
             }
         }
 
-        // 모니터 화면 (검정 고정)
         const vizCanvas = document.createElement('canvas');
         vizCanvas.width = 1024; vizCanvas.height = 512;
         const ctx = vizCanvas.getContext('2d');
@@ -202,14 +219,14 @@
             ctx.textAlign = 'center';
             ctx.fillText("MUSIC STUDIO", 512, 240);
             ctx.font = '20px Courier New'; 
-            ctx.fillStyle = '#00dbde';
+            ctx.fillStyle = aiData.mainColor;
             ctx.fillText("NOW PLAYING", 512, 290);
             vizTexture.needsUpdate = true;
         }
         drawScreen();
 
         // ============================================================
-        // ★ 4. 3D 에셋 배치 (기존 설정 유지)
+        // ★ 3. 3D 에셋 배치
         // ============================================================
         const THEME_CONFIG = {
           "desk": { "pos": { "x": 5.77, "y": 0, "z": -8.31 }, "rotDeg": 270, "scale": 2.6, "color": "#303030" },
@@ -239,8 +256,7 @@
           "energy_drink1": { "pos": { "x": 7.5, "y": 4.55, "z": -8.4 }, "rotDeg": 217, "scale": 0.2, "color": "#eeeeee" },
           "energy_drink3": { "pos": { "x": 7.1, "y": 4.55, "z": -8.65 }, "rotDeg": 217, "scale": 0.2, "color": "#eeeeee" },
           "backdrop": { "pos": { "x": 3.96, "y": 4.5, "z": -19.56 }, "scale": { "x": 16, "y": 9 }, "imageData": null, "videoData": null },
-          "camera": { "pos": { "x": 4.811322916769001, "y": 4.1003138237776495, "z": -3.6476561144672974 }, "target": { "x": 5.723421122771882, "y": 3.2003816434043144, "z": -10.970304568444874 } },
-          "lights": { "sun": { "x": 5, "y": 8, "z": 5, "intensity": 1.5 }, "ambient": { "intensity": 0.8 } }
+          "camera": { "pos": { "x": 4.811322916769001, "y": 4.1003138237776495, "z": -3.6476561144672974 }, "target": { "x": 5.723421122771882, "y": 3.2003816434043144, "z": -10.970304568444874 } }
         };
 
         const assetList = [
@@ -313,9 +329,8 @@
         });
 
         // ============================================================
-        // ★ 5. 배경 비디오 맵핑
+        // ★ 4. 배경 비디오 맵핑 (다이나믹 시스템 적용)
         // ============================================================
-        // 장르에 따라 어울리는 배경 매핑
         if (THEME_CONFIG.backdrop) {
             const bgConfig = THEME_CONFIG.backdrop;
             const bgGeo = new THREE.PlaneGeometry(1, 1);
@@ -324,29 +339,36 @@
             backdrop.position.set(bgConfig.pos.x, bgConfig.pos.y, bgConfig.pos.z);
             backdrop.scale.set(bgConfig.scale.x, bgConfig.scale.y, 1);
             
-            const genreLower = aiData.topGenre.toLowerCase();
-            let targetUrl = "./wallpaper/Night.mp4"; // 기본 배경
+            // 여러 수치를 조합해 0~100점 사이의 배경 점수를 만듭니다.
+            const bgScore = (aiData.bpm * 0.4 + aiData.energy * 0.3 + aiData.brightness * 0.3) % 100;
             
-            if (genreLower.includes("pop") || aiData.brightness > 80) targetUrl = "./wallpaper/Sunny.mp4";
-            if (genreLower.includes("sad") || aiData.brightness < 40) targetUrl = "./wallpaper/Rainy.mp4";
-            if (aiData.energy > 85) targetUrl = "./wallpaper/Sunset.mp4";
+            let targetUrl = "./wallpaper/Night.mp4"; 
+
+            if (bgScore >= 75) {
+                targetUrl = "./wallpaper/Sunny.mp4"; 
+            } else if (bgScore >= 50) {
+                targetUrl = "./wallpaper/Sunset.mp4"; 
+            } else if (bgScore >= 25) {
+                targetUrl = "./wallpaper/Rainy.mp4"; 
+            } else {
+                targetUrl = "./wallpaper/Night.mp4"; 
+            }
+
+            console.log(`배경 결정 점수: ${bgScore.toFixed(2)}, 선택된 배경: ${targetUrl}`);
 
             bgVideo.src = targetUrl;
-            
             const videoTexture = new THREE.VideoTexture(bgVideo);
             videoTexture.encoding = THREE.sRGBEncoding;
-            
             backdrop.material.map = videoTexture;
             backdrop.material.needsUpdate = true;
-            
             scene.add(backdrop);
         }
 
         // ============================================================
-        // ★ 6. 애니메이션 루프
+        // ★ 5. 애니메이션 루프
         // ============================================================
         const clock = new THREE.Clock();
-        const cycleSpeed = 0.2; 
+        const cycleSpeed = (aiData.bpm / 100) * 0.3; 
 
         function animate() {
             requestAnimationFrame(animate);
@@ -361,6 +383,15 @@
 
             dirLight.color.copy(currentColor);
             ambientLight.color.copy(currentColor);
+
+            let beatIntensity = 0;
+            if (isPlaying && analyser) {
+                beatIntensity = analyser.getAverageFrequency() / 255.0;
+            }
+
+            const baseBrightness = 0.5 + (aiData.brightness / 200);
+            dirLight.intensity = baseBrightness + (beatIntensity * 2.0);
+            ambientLight.intensity = (baseBrightness * 0.5) + (beatIntensity * 0.8);
 
             renderer.render(scene, camera);
         }

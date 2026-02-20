@@ -387,7 +387,7 @@
     </script>
 
     <script>
-        // AI 서버 및 확정된 S3 버킷 주소
+        // AI 서버 및 S3 주소
         const AI_API_URL = 'http://172.16.6.81:8000/upload'; 
         const S3_BASE_URL = 'https://ai-project-result.s3.ap-northeast-2.amazonaws.com/results';
         
@@ -416,7 +416,6 @@
             document.getElementById('loading-section').style.display = 'flex'; 
             startLoadingAnimation();
 
-            // 1단계: AI 서버로 전송 시작
             fetchAndStart(file); 
         }
 
@@ -425,12 +424,10 @@
             let width = 0;
             if(progressInterval) clearInterval(progressInterval);
             progressInterval = setInterval(() => {
-                // S3 파일 업로드를 기다리는 동안 90% 까지만 채움
                 if (width < 90) { width += 0.2; if(bar) bar.style.width = width + '%'; }
             }, 100);
         }
 
-        // [1단계] AI 서버에 파일 접수하고 대기표(Task ID) 받기
         async function fetchAndStart(file) { 
             try { 
                 console.log("1. AI 서버에 파일 전송 중...");
@@ -449,9 +446,7 @@
                 let promptText = "";
                 if (version === "3") {
                     promptText = document.getElementById('video-prompt').value;
-                    if (promptText.trim() !== "") {
-                        formData.append("user_request", promptText);
-                    }
+                    if (promptText.trim() !== "") formData.append("user_request", promptText);
                 }
 
                 const res = await fetch(AI_API_URL, {
@@ -459,22 +454,19 @@
                     body: formData
                 }); 
 
-                if (!res.ok) {
-                    throw new Error(`AI 서버 통신 에러 (상태 코드: ${res.status})`);
-                }
+                if (!res.ok) throw new Error(`AI 서버 통신 에러 (상태 코드: ${res.status})`);
 
-                // AI 서버가 주는 대기표 (task_id) 확보
                 const aiResponse = await res.json();
                 const taskId = aiResponse.task_id;
-                
-                if (!taskId) {
-                    throw new Error("AI 서버에서 Task ID를 받지 못했습니다!");
-                }
+                if (!taskId) throw new Error("AI 서버에서 Task ID를 받지 못했습니다!");
 
                 console.log(`접수 완료! 부여받은 대기표 번호: ${taskId}`);
                 
-                // 2단계: S3 주소 찌르기(Polling) 시작
-                pollS3ForResult(taskId, selectedTheme, promptText, version);
+                // ★ [핵심] 사용자가 올린 원본 파일의 확장자를 따서 S3 오디오 주소 만들기
+                const fileExt = file.name.substring(file.name.lastIndexOf('.')); // 예: .mp3
+                const audioS3Url = `${S3_BASE_URL}/audio_${taskId}${fileExt}`;
+                
+                pollS3ForResult(taskId, selectedTheme, promptText, version, audioS3Url);
 
             } catch (e) {
                 console.error(e);
@@ -483,35 +475,24 @@
             } 
         }
 
-        // [2단계] S3 버킷에 결과물이 올라왔는지 3초마다 확인 (Polling)
-        function pollS3ForResult(taskId, selectedTheme, promptText, version) {
+        // [2단계] S3 버킷 폴링 및 결과 저장
+        function pollS3ForResult(taskId, selectedTheme, promptText, version, audioS3Url) {
             console.log("2. S3 버킷에서 파일 업로드 대기 중...");
             
-            // AI 서버 코드의 저장 로직과 똑같이 파일명 조합
             let fileName = "";
-            if (version === "1" || version === "2") {
-                fileName = `result_v${version}_${taskId}.json`;
-            } else if (version === "3") {
-                fileName = `final_v3_${taskId}.mp4`;
-            }
+            if (version === "1" || version === "2") fileName = `result_v${version}_${taskId}.json`;
+            else if (version === "3") fileName = `final_v3_${taskId}.mp4`;
 
-            // 찾을 S3 풀 주소
             const expectedS3Url = `${S3_BASE_URL}/${fileName}`;
-            console.log("찾고 있는 S3 주소:", expectedS3Url);
             
-            // 3초마다 반복 실행
             const pollTimer = setInterval(async () => {
                 try {
-                    // 브라우저 캐시 방지용 타임스탬프 (이전 실패 기록을 무시하고 새로 확인)
                     const fetchUrl = `${expectedS3Url}?t=${new Date().getTime()}`;
-                    
-                    // 파일의 존재 유무만 가볍게 확인 (HEAD 요청)
                     const response = await fetch(fetchUrl, { method: 'HEAD' });
                     
                     if (response.status === 200) {
                         console.log("🎉 S3 업로드 확인 완료! 데이터 수신 준비 끝!");
                         
-                        // 반복 확인 종료, 진행도 100% 채우기
                         clearInterval(pollTimer);
                         clearInterval(progressInterval);
                         document.getElementById('progress-bar').style.width = '100%';
@@ -519,29 +500,38 @@
                         let finalData = {};
 
                         if (version === "3") {
-                            // 비디오(v3)일 경우: 용량이 크므로 파일 내용 대신 주소만 전달
                             finalData = {
                                 videoUrl: expectedS3Url, 
-                                userPrompt: promptText
+                                userPrompt: promptText,
+                                audioUrl: audioS3Url // ★ 오디오 S3 주소 포함
                             };
                         } else {
-                            // JSON(v1, v2)일 경우: 실제 데이터를 GET으로 가져와서 로컬에 통째로 저장
                             const getRes = await fetch(fetchUrl);
-                            finalData = await getRes.json();
+                            const rawData = await getRes.json();
+                            
+                            finalData = {
+                                raw_ai_data: rawData,
+                                bpm: rawData.basic_metrics ? rawData.basic_metrics.bpm : 120,
+                                highlight_sec: rawData.basic_metrics ? rawData.basic_metrics.highlight_sec : 0,
+                                energy: rawData.mood_and_vibe ? rawData.mood_and_vibe.energy_score : 50,
+                                brightness: rawData.mood_and_vibe ? rawData.mood_and_vibe.brightness_score : 50,
+                                genres: rawData.ai_top_predictions ? rawData.ai_top_predictions.map(item => item.label) : [],
+                                topGenre: rawData.ai_top_predictions ? rawData.ai_top_predictions[0].label : "Unknown",
+                                probability: rawData.ai_top_predictions ? rawData.ai_top_predictions[0].probability : 0,
+                                audioUrl: audioS3Url // ★ 오디오 S3 주소 포함
+                            };
                         }
 
-                        // 로컬 스토리지에 결과 저장 후 테마 페이지로 이동
                         localStorage.setItem('visualData', JSON.stringify(finalData));
                         setTimeout(() => { window.location.href = selectedTheme; }, 500);
                         
                     } else {
-                        // 403 / 404 등 200이 아닐 경우: S3에 파일이 아직 없는 상태
                         console.log("AI가 열심히 작업 중입니다... (S3 파일 없음)");
                     }
                 } catch (error) {
-                    console.error("S3 확인 중 에러 (일시적인 네트워크 지연일 수 있음):", error);
+                    console.error("S3 확인 중 에러 (네트워크 지연):", error);
                 }
-            }, 3000); // 3000ms = 3초
+            }, 3000); 
         }
     </script>
 </body>
