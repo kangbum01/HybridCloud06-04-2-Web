@@ -19,8 +19,6 @@
         body { background-color: #000; margin: 0; padding: 0; overflow: hidden; font-family: 'Montserrat', sans-serif; cursor: pointer; }
         #visualization-container { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 1; }
         
-        /* 홈 버튼 스타일 삭제됨 */
-
         /* 결과 화면 UI (기본 opacity 0) */
         #result-ui { position: absolute; width: 100%; height: 100%; z-index: 50; pointer-events: none; opacity: 0; transition: opacity 1s; }
         .vibe-badge { position: absolute; bottom: 40px; left: 40px; color: #fff; font-size: 3em; font-weight: 900; mix-blend-mode: screen; text-shadow: 0 0 20px rgba(255,255,255,0.5); }
@@ -110,33 +108,55 @@
         }
 
         // ============================================================
-        // ★ 1. 데이터 로드
+        // ★ 1. 데이터 로드 및 파싱 (새로운 구조 적용)
         // ============================================================
-        let visualData = JSON.parse(localStorage.getItem('visualData'));
+        let rawData = JSON.parse(localStorage.getItem('visualData'));
 
-        if (!visualData) {
-            visualData = {
-                emotion_rankings: [{ mood: "Energetic", confidence: "0.95" }],
-                analysis: { tempo: 128, intensity: 0.8 },
-                palette: { main: "#ff00de", accent: "#00dbde" }
-            };
+        // 원본 JSON이 없거나 통신 에러일 경우를 대비한 방어적 기본값 설정
+        let aiData = {
+            bpm: 120,
+            energy: 50,
+            brightness: 50,
+            topGenre: "SYNTHWAVE",
+            probability: 100,
+            palette: { main: "#ff00de", accent: "#00dbde" } // Sunset 테마의 기본 컬러
+        };
+
+        if (rawData) {
+            // 새 데이터 구조에서 값 추출
+            aiData.bpm = (rawData.basic_metrics && rawData.basic_metrics.bpm) ? rawData.basic_metrics.bpm : 120;
+            aiData.energy = (rawData.mood_and_vibe && rawData.mood_and_vibe.energy_score) ? rawData.mood_and_vibe.energy_score : 50;
+            aiData.brightness = (rawData.mood_and_vibe && rawData.mood_and_vibe.brightness_score) ? rawData.mood_and_vibe.brightness_score : 50;
+            
+            if (rawData.ai_top_predictions && rawData.ai_top_predictions.length > 0) {
+                aiData.topGenre = rawData.ai_top_predictions[0].label;
+                aiData.probability = rawData.ai_top_predictions[0].probability;
+            }
+
+            // 장르에 따른 테마 색상 (Sunset Drive에 어울리게 세팅)
+            const genreLower = aiData.topGenre.toLowerCase();
+            if (genreLower.includes("electronic") || aiData.energy > 80) {
+                aiData.palette = { main: "#ff00de", accent: "#00dbde" }; // 핫핑크 & 형광파랑
+            } else if (genreLower.includes("pop") || aiData.brightness > 80) {
+                aiData.palette = { main: "#ffaa00", accent: "#ff00de" }; // 주황 & 핫핑크
+            } else {
+                aiData.palette = { main: "#ff0055", accent: "#0055ff" }; // 기본
+            }
         }
 
-        renderUI(visualData);
-        startSunsetDrive(visualData);
+        renderUI(aiData);
+        startSunsetDrive(aiData);
 
+        // ============================================================
+        // ★ 2. UI 렌더링
+        // ============================================================
         function renderUI(data) {
-            const topMood = (data.emotion_rankings && data.emotion_rankings[0]) ? data.emotion_rankings[0] : { mood: "Unknown", confidence: 0 }; 
-            document.getElementById('vibe-display').innerHTML = `${topMood.mood}<span class="vibe-sub">CONFIDENCE: ${topMood.confidence}</span>`; 
-            
-            const bpm = data.analysis.tempo || 'N/A';
-            const intensity = data.analysis.intensity ? (data.analysis.intensity * 100).toFixed(0) : 0;
-            const themeColor = data.palette.main || '#FFF';
+            document.getElementById('vibe-display').innerHTML = `${data.topGenre.toUpperCase()}<span class="vibe-sub">CONFIDENCE: ${data.probability.toFixed(1)}%</span>`; 
             
             document.getElementById('music-stats-container').innerHTML = `
-                <div class="stat-row">TEMPO <span class="stat-value">${bpm} BPM</span></div>
-                <div class="stat-row">ENERGY <span class="stat-value">${intensity} %</span></div>
-                <div class="stat-row">THEME <span class="stat-value" style="color:${themeColor}">${themeColor}</span></div>
+                <div class="stat-row">TEMPO <span class="stat-value">${data.bpm.toFixed(0)} BPM</span></div>
+                <div class="stat-row">ENERGY <span class="stat-value">${data.energy.toFixed(0)} %</span></div>
+                <div class="stat-row">THEME <span class="stat-value" style="color:${data.palette.main}">${data.palette.main}</span></div>
             `;
         }
 
@@ -147,7 +167,7 @@
             const container = document.getElementById('visualization-container');
             const cMain = new THREE.Color(data.palette.main);
             const cAccent = new THREE.Color(data.palette.accent);
-            const bpm = data.analysis.tempo || 120;
+            const bpm = data.bpm;
 
             const scene = new THREE.Scene();
             const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
@@ -189,7 +209,8 @@
                 const delta = clock.getDelta();
                 const time = clock.getElapsedTime();
                 
-                let baseIntensity = data.analysis.intensity || 0.5;
+                // 에너지 스코어(0~100)를 0~1 사이 값으로 변환
+                let baseIntensity = data.energy / 100;
                 let intensity = baseIntensity;
 
                 if (isPlaying && analyser) {
@@ -265,11 +286,13 @@
                 const road = scene.getObjectByName('road');
                 const carGroup = scene.getObjectByName('car');
 
+                // BPM을 기반으로 도로가 흘러가는 속도 계산
                 const baseSpeed = (bpm / 60) * 1.5;
                 const currentSpeed = isPlaying ? (baseSpeed + (intensity * 2.0)) : (baseSpeed * 0.3);
                 
                 road.material.map.offset.y -= currentSpeed * delta * 0.5;
                 
+                // 음악 강도(intensity)에 따라 태양 크기 펄스 효과
                 const sunPulse = isPlaying ? (Math.sin(time * 10) * 0.05 * intensity) : 0;
                 const sunScale = 1 + sunPulse;
                 sun.scale.set(sunScale, sunScale, 1);

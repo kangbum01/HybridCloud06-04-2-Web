@@ -50,7 +50,7 @@
         /* 3. Video (Green) */
         .theme-option:nth-child(3) input:checked + .theme-card { border-color: #00ff00; box-shadow: 0 0 20px rgba(0, 255, 0, 0.4); }
 
-        /* ★ [수정됨] 프롬프트 입력 섹션 */
+        /* 프롬프트 입력 섹션 */
         #sub-style-section { display: none; margin-bottom: 30px; animation: fadeIn 0.5s; text-align: left; }
         .sub-label { color: #00ff00; font-size: 11px; font-weight: bold; margin-bottom: 8px; display: block; letter-spacing: 1px; }
         #video-prompt { 
@@ -370,7 +370,7 @@
                 alert("로그아웃 되었습니다.");
             });
         });
-
+        
         onAuthStateChanged(auth, (user) => {
             if (user) {
                 loginBtn.style.display = 'none';
@@ -387,7 +387,10 @@
     </script>
 
     <script>
-        const LOCAL_TEST_JSON = './music_project/theme.json'; 
+        // AI 서버 및 확정된 S3 버킷 주소
+        const AI_API_URL = 'http://172.16.6.81:8000/upload'; 
+        const S3_BASE_URL = 'https://ai-project-result.s3.ap-northeast-2.amazonaws.com/results';
+        
         let progressInterval = null;
 
         function toggleSubOptions() {
@@ -413,7 +416,8 @@
             document.getElementById('loading-section').style.display = 'flex'; 
             startLoadingAnimation();
 
-            setTimeout(() => { fetchAndStart(); }, 2000);
+            // 1단계: AI 서버로 전송 시작
+            fetchAndStart(file); 
         }
 
         function startLoadingAnimation() {
@@ -421,33 +425,123 @@
             let width = 0;
             if(progressInterval) clearInterval(progressInterval);
             progressInterval = setInterval(() => {
-                if (width < 90) { width += 0.5; if(bar) bar.style.width = width + '%'; }
-            }, 50);
+                // S3 파일 업로드를 기다리는 동안 90% 까지만 채움
+                if (width < 90) { width += 0.2; if(bar) bar.style.width = width + '%'; }
+            }, 100);
         }
 
-        async function fetchAndStart() { 
+        // [1단계] AI 서버에 파일 접수하고 대기표(Task ID) 받기
+        async function fetchAndStart(file) { 
             try { 
-                const res = await fetch(LOCAL_TEST_JSON); 
-                if (res.status === 200) { 
-                    clearInterval(progressInterval);
-                    document.getElementById('progress-bar').style.width = '100%';
-                    const analysisData = await res.json();
-                    
-                    // ★ [수정됨] 텍스트 박스에 입력된 값을 가져와서 저장
-                    const selectedTheme = document.querySelector('input[name="theme"]:checked').value;
-                    if (selectedTheme === 'theme_video.html') {
-                        const promptText = document.getElementById('video-prompt').value;
-                        analysisData.userPrompt = promptText; // 입력된 프롬프트를 데이터에 추가
-                    }
+                console.log("1. AI 서버에 파일 전송 중...");
 
-                    localStorage.setItem('visualData', JSON.stringify(analysisData));
-                    
-                    setTimeout(() => { window.location.href = selectedTheme; }, 500);
-                } else { throw new Error("Local JSON file not found"); }
+                const formData = new FormData();
+                formData.append("file", file);
+
+                const selectedTheme = document.querySelector('input[name="theme"]:checked').value;
+                let version = "1";
+                if (selectedTheme === 'theme_sunset.html') version = "1";
+                else if (selectedTheme === 'theme_studio.html') version = "2";
+                else if (selectedTheme === 'theme_video.html') version = "3";
+
+                formData.append("version", version);
+
+                let promptText = "";
+                if (version === "3") {
+                    promptText = document.getElementById('video-prompt').value;
+                    if (promptText.trim() !== "") {
+                        formData.append("user_request", promptText);
+                    }
+                }
+
+                const res = await fetch(AI_API_URL, {
+                    method: 'POST',
+                    body: formData
+                }); 
+
+                if (!res.ok) {
+                    throw new Error(`AI 서버 통신 에러 (상태 코드: ${res.status})`);
+                }
+
+                // AI 서버가 주는 대기표 (task_id) 확보
+                const aiResponse = await res.json();
+                const taskId = aiResponse.task_id;
+                
+                if (!taskId) {
+                    throw new Error("AI 서버에서 Task ID를 받지 못했습니다!");
+                }
+
+                console.log(`접수 완료! 부여받은 대기표 번호: ${taskId}`);
+                
+                // 2단계: S3 주소 찌르기(Polling) 시작
+                pollS3ForResult(taskId, selectedTheme, promptText, version);
+
             } catch (e) {
-                alert("테스트 데이터(music_project/theme.json)를 찾을 수 없습니다!");
-                location.reload();
+                console.error(e);
+                alert("AI 서버 접속 중 오류가 발생했습니다.\n콘솔창(F12)을 확인해주세요.");
+                location.reload(); 
             } 
+        }
+
+        // [2단계] S3 버킷에 결과물이 올라왔는지 3초마다 확인 (Polling)
+        function pollS3ForResult(taskId, selectedTheme, promptText, version) {
+            console.log("2. S3 버킷에서 파일 업로드 대기 중...");
+            
+            // AI 서버 코드의 저장 로직과 똑같이 파일명 조합
+            let fileName = "";
+            if (version === "1" || version === "2") {
+                fileName = `result_v${version}_${taskId}.json`;
+            } else if (version === "3") {
+                fileName = `final_v3_${taskId}.mp4`;
+            }
+
+            // 찾을 S3 풀 주소
+            const expectedS3Url = `${S3_BASE_URL}/${fileName}`;
+            console.log("찾고 있는 S3 주소:", expectedS3Url);
+            
+            // 3초마다 반복 실행
+            const pollTimer = setInterval(async () => {
+                try {
+                    // 브라우저 캐시 방지용 타임스탬프 (이전 실패 기록을 무시하고 새로 확인)
+                    const fetchUrl = `${expectedS3Url}?t=${new Date().getTime()}`;
+                    
+                    // 파일의 존재 유무만 가볍게 확인 (HEAD 요청)
+                    const response = await fetch(fetchUrl, { method: 'HEAD' });
+                    
+                    if (response.status === 200) {
+                        console.log("🎉 S3 업로드 확인 완료! 데이터 수신 준비 끝!");
+                        
+                        // 반복 확인 종료, 진행도 100% 채우기
+                        clearInterval(pollTimer);
+                        clearInterval(progressInterval);
+                        document.getElementById('progress-bar').style.width = '100%';
+                        
+                        let finalData = {};
+
+                        if (version === "3") {
+                            // 비디오(v3)일 경우: 용량이 크므로 파일 내용 대신 주소만 전달
+                            finalData = {
+                                videoUrl: expectedS3Url, 
+                                userPrompt: promptText
+                            };
+                        } else {
+                            // JSON(v1, v2)일 경우: 실제 데이터를 GET으로 가져와서 로컬에 통째로 저장
+                            const getRes = await fetch(fetchUrl);
+                            finalData = await getRes.json();
+                        }
+
+                        // 로컬 스토리지에 결과 저장 후 테마 페이지로 이동
+                        localStorage.setItem('visualData', JSON.stringify(finalData));
+                        setTimeout(() => { window.location.href = selectedTheme; }, 500);
+                        
+                    } else {
+                        // 403 / 404 등 200이 아닐 경우: S3에 파일이 아직 없는 상태
+                        console.log("AI가 열심히 작업 중입니다... (S3 파일 없음)");
+                    }
+                } catch (error) {
+                    console.error("S3 확인 중 에러 (일시적인 네트워크 지연일 수 있음):", error);
+                }
+            }, 3000); // 3000ms = 3초
         }
     </script>
 </body>

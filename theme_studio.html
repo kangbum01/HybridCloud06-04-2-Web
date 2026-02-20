@@ -12,8 +12,6 @@
 
         body { margin: 0; overflow: hidden; background: #1a1a1a; font-family: 'Montserrat', sans-serif; cursor: pointer; }
         
-        /* 홈 버튼 스타일 삭제됨 */
-
         #result-ui { position: absolute; width: 100%; height: 100%; z-index: 50; pointer-events: none; opacity: 0; transition: opacity 1s; }
         .vibe-badge { position: absolute; bottom: 40px; left: 40px; color: #fff; font-size: 3em; font-weight: 900; mix-blend-mode: screen; text-shadow: 0 0 20px rgba(255,255,255,0.5); }
         .vibe-sub { font-size: 14px; display: block; margin-top: 5px; opacity: 0.8; letter-spacing: 2px; }
@@ -53,15 +51,11 @@
     </div>
 
     <video id="bg-video" loop muted playsinline style="display:none;"></video>
-
     <audio id="audio-player" src="./music_project/test.mp3" loop></audio>
 
     <div id="result-ui">
         <div id="music-stats-container" class="music-stats">
-            <div class="stat-row">TEMPO <span class="stat-value">LOADING...</span></div>
-            <div class="stat-row">ENERGY <span class="stat-value">LOADING...</span></div>
-            <div class="stat-row">THEME <span class="stat-value">LOADING...</span></div>
-        </div>
+            </div>
         <div id="vibe-display" class="vibe-badge"></div>
     </div>
 
@@ -114,17 +108,65 @@
         const floor = new THREE.Mesh(new THREE.PlaneGeometry(20, 20), floorMat);
         floor.rotation.x = -Math.PI/2; floor.receiveShadow = true; scene.add(floor);
 
-        // ============================================================
-        // ★ ESC 키 이벤트 리스너 추가
-        // ============================================================
+        // ESC 키로 홈으로 이동
         window.addEventListener('keydown', (event) => {
             if (event.key === 'Escape') {
-                window.location.href = 'index.html'; // 초기화면으로 이동
+                window.location.href = 'index.html'; 
             }
         });
 
         // ============================================================
-        // ★ 1. 시작 로직
+        // ★ 1. 데이터 로드 및 파싱 (새로운 구조 적용)
+        // ============================================================
+        let rawData = JSON.parse(localStorage.getItem('visualData'));
+        
+        // 원본 JSON이 없을 경우를 대비한 기본값
+        let aiData = {
+            bpm: 120,
+            energy: 50,
+            brightness: 50,
+            topGenre: "Unknown",
+            probability: 0
+        };
+
+        if (rawData) {
+            // 새 데이터 구조에서 값을 뽑아옴 (방어적 코드)
+            aiData.bpm = (rawData.basic_metrics && rawData.basic_metrics.bpm) ? rawData.basic_metrics.bpm : 120;
+            aiData.energy = (rawData.mood_and_vibe && rawData.mood_and_vibe.energy_score) ? rawData.mood_and_vibe.energy_score : 50;
+            aiData.brightness = (rawData.mood_and_vibe && rawData.mood_and_vibe.brightness_score) ? rawData.mood_and_vibe.brightness_score : 50;
+            
+            if (rawData.ai_top_predictions && rawData.ai_top_predictions.length > 0) {
+                aiData.topGenre = rawData.ai_top_predictions[0].label;
+                aiData.probability = rawData.ai_top_predictions[0].probability;
+            }
+        }
+
+        // ============================================================
+        // ★ 2. UI 및 색상 팔레트 세팅
+        // ============================================================
+        // 장르에 따른 테마 색상 지정 (임의의 로직 - 원하시는 대로 수정 가능)
+        let tColor = "#00dbde"; // 기본 Cyan 색상
+        if (aiData.topGenre.toLowerCase().includes("pop") || aiData.topGenre.toLowerCase().includes("disco")) {
+            tColor = "#ff00de"; // Pop/Disco는 Pink
+        } else if (aiData.topGenre.toLowerCase().includes("electronic")) {
+            tColor = "#00ff00"; // Electronic은 Green
+        }
+
+        let colorPalette = [
+            new THREE.Color(tColor),
+            new THREE.Color(tColor).offsetHSL(0.1, 0, 0)
+        ];
+
+        // UI 업데이트
+        document.getElementById('vibe-display').innerHTML = `${aiData.topGenre.toUpperCase()}<span class="vibe-sub">CONFIDENCE: ${aiData.probability.toFixed(1)}%</span>`; 
+        document.getElementById('music-stats-container').innerHTML = `
+            <div class="stat-row">TEMPO <span class="stat-value">${aiData.bpm.toFixed(0)} BPM</span></div>
+            <div class="stat-row">ENERGY <span class="stat-value">${aiData.energy.toFixed(0)} %</span></div>
+            <div class="stat-row">BRIGHT <span class="stat-value">${aiData.brightness.toFixed(0)} %</span></div>
+        `;
+
+        // ============================================================
+        // ★ 3. 시작 및 배경 로직 
         // ============================================================
         function startExperience() {
             startOverlay.style.opacity = '0';
@@ -146,66 +188,28 @@
             }
         }
 
-        // ============================================================
-        // ★ 2. 모니터 화면 (검정색 고정)
-        // ============================================================
+        // 모니터 화면 (검정 고정)
         const vizCanvas = document.createElement('canvas');
         vizCanvas.width = 1024; vizCanvas.height = 512;
         const ctx = vizCanvas.getContext('2d');
         const vizTexture = new THREE.CanvasTexture(vizCanvas);
 
         function drawScreen() {
-            ctx.fillStyle = '#000000'; // 검정색
+            ctx.fillStyle = '#000000';
             ctx.fillRect(0, 0, 1024, 512);
-            
             ctx.fillStyle = '#ffffff';
             ctx.font = 'bold 40px Courier New'; 
             ctx.textAlign = 'center';
             ctx.fillText("MUSIC STUDIO", 512, 240);
-            
             ctx.font = '20px Courier New'; 
             ctx.fillStyle = '#00dbde';
             ctx.fillText("NOW PLAYING", 512, 290);
-            
             vizTexture.needsUpdate = true;
         }
         drawScreen();
 
         // ============================================================
-        // ★ 3. 데이터 로드
-        // ============================================================
-        let visualData = JSON.parse(localStorage.getItem('visualData'));
-        if (!visualData) {
-            visualData = {
-                emotion_rankings: [{ mood: "Default", confidence: "0.0" }],
-                analysis: { tempo: 120, intensity: 0.5 },
-                palette: { main: "#00dbde", sub: "#ff00de", accent: "#ffffff" }
-            };
-        }
-
-        let colorPalette = [];
-        if (visualData.palette) {
-            if (visualData.palette.main) colorPalette.push(new THREE.Color(visualData.palette.main));
-            if (visualData.palette.sub) colorPalette.push(new THREE.Color(visualData.palette.sub));
-            if (visualData.palette.accent) colorPalette.push(new THREE.Color(visualData.palette.accent));
-        }
-        if (colorPalette.length < 2) {
-            if (colorPalette.length === 0) colorPalette.push(new THREE.Color("#00dbde"));
-            colorPalette.push(colorPalette[0].clone().offsetHSL(0.2, 0, 0)); 
-        }
-
-        const topMood = (visualData.emotion_rankings && visualData.emotion_rankings[0]) ? visualData.emotion_rankings[0] : { mood: "Unknown", confidence: 0 };
-        document.getElementById('vibe-display').innerHTML = `${topMood.mood}<span class="vibe-sub">CONFIDENCE: ${topMood.confidence}</span>`; 
-        
-        const tColor = visualData.palette.main || '#FFF';
-        document.getElementById('music-stats-container').innerHTML = `
-            <div class="stat-row">TEMPO <span class="stat-value">${visualData.analysis.tempo || 'N/A'} BPM</span></div>
-            <div class="stat-row">ENERGY <span class="stat-value">${(visualData.analysis.intensity * 100).toFixed(0)} %</span></div>
-            <div class="stat-row">THEME <span class="stat-value" style="color:${tColor}">${tColor}</span></div>
-        `;
-
-        // ============================================================
-        // ★ 4. 3D 에셋 배치
+        // ★ 4. 3D 에셋 배치 (기존 설정 유지)
         // ============================================================
         const THEME_CONFIG = {
           "desk": { "pos": { "x": 5.77, "y": 0, "z": -8.31 }, "rotDeg": 270, "scale": 2.6, "color": "#303030" },
@@ -309,10 +313,9 @@
         });
 
         // ============================================================
-        // ★ 5. 배경 로드 (영상)
+        // ★ 5. 배경 비디오 맵핑
         // ============================================================
-        const analyzedMood = visualData.emotion_rankings[0].mood || "Default";
-        
+        // 장르에 따라 어울리는 배경 매핑
         if (THEME_CONFIG.backdrop) {
             const bgConfig = THEME_CONFIG.backdrop;
             const bgGeo = new THREE.PlaneGeometry(1, 1);
@@ -321,15 +324,13 @@
             backdrop.position.set(bgConfig.pos.x, bgConfig.pos.y, bgConfig.pos.z);
             backdrop.scale.set(bgConfig.scale.x, bgConfig.scale.y, 1);
             
-            const BACKGROUND_MAP = {
-                "Energetic": "./wallpaper/Night.mp4",
-                "Calm": "./wallpaper/Sunset.mp4",
-                "Sad": "./wallpaper/Rainy.mp4",
-                "Happy": "./wallpaper/Sunny.mp4",
-                "Default": "./wallpaper/Night.mp4"
-            };
+            const genreLower = aiData.topGenre.toLowerCase();
+            let targetUrl = "./wallpaper/Night.mp4"; // 기본 배경
             
-            const targetUrl = BACKGROUND_MAP[analyzedMood] || BACKGROUND_MAP["Default"];
+            if (genreLower.includes("pop") || aiData.brightness > 80) targetUrl = "./wallpaper/Sunny.mp4";
+            if (genreLower.includes("sad") || aiData.brightness < 40) targetUrl = "./wallpaper/Rainy.mp4";
+            if (aiData.energy > 85) targetUrl = "./wallpaper/Sunset.mp4";
+
             bgVideo.src = targetUrl;
             
             const videoTexture = new THREE.VideoTexture(bgVideo);
