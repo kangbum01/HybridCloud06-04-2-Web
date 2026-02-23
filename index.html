@@ -432,7 +432,7 @@
                 console.log("1. WAS 서버로 파일 전송 중...");
 
                 const formData = new FormData();
-                formData.append("file", file); // 팀원분이 요청한 key값 'file'
+                formData.append("file", file);
 
                 const selectedTheme = document.querySelector('input[name="theme"]:checked').value;
                 let version = "1";
@@ -466,9 +466,11 @@
                 pollWasForResult(jobId, selectedTheme, promptText, version);
 
             } catch (e) {
+                // ★ [수정됨] alert 창과 reload를 막고, 콘솔에 에러를 자세히 찍어줍니다.
+                console.error("================================");
+                console.error("🚨 통신 에러 발생!");
                 console.error(e);
-                alert("WAS 서버 통신 중 오류가 발생했습니다.\n콘솔창(F12)을 확인해주세요.");
-                location.reload(); 
+                console.error("================================");
             } 
         }
 
@@ -506,7 +508,6 @@
                             brightness: analysis.brightness_score || analysis.brightness || 50,
                             topGenre: (analysis.genres && analysis.genres.length > 0) ? analysis.genres[0] : "Unknown",
                             probability: analysis.probability || 100,
-                            // 파일 URL: WAS가 알려준 주소를 쓰거나, WAS 주소 하위 경로로 예측
                             audioUrl: files.audio_url || `${pollUrl}/audio`,
                             videoUrl: files.video_url || `${pollUrl}/video`,
                             userPrompt: promptText,
