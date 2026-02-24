@@ -474,61 +474,103 @@
             } 
         }
 
-        // [2단계] WAS 폴링 (JSON + 파일 통합 수신)
-        function pollWasForResult(jobId, selectedTheme, promptText, version) {
-            const pollUrl = `${WAS_API_URL}/${jobId}`;
-            console.log("2. WAS 결과 대기 중...", pollUrl);
-            
-            const pollTimer = setInterval(async () => {
+    // [2단계] WAS 폴링: DONE이면 /results에서 presign URL 받기
+      function pollWasForResult(jobId, selectedTheme, promptText, version) {
+        const pollUrl = `${WAS_API_URL}/${jobId}`;
+        const resultsUrl = `${pollUrl}/results`;
+
+        console.log("2. WAS 결과 대기 중...", pollUrl);
+
+        const pollTimer = setInterval(async () => {
+          try {
+            const response = await fetch(pollUrl);
+
+            if (response.status === 404) {
+              console.log("작업을 찾는 중... (아직 생성되지 않음)");
+              return;
+            }
+            if (!response.ok) {
+              console.log("결과 대기 중... (Status:", response.status, ")");
+              return;
+            }
+
+            const job = await response.json();
+
+            // ✅ 진행 중: QUEUED 포함
+            if (job.status === "PENDING" || job.status === "QUEUED" || job.status === "PROCESSING") {
+              console.log("진행중:", job.status);
+              return;
+            }
+
+            // ✅ 실패
+            if (job.status === "FAIL") {
+              clearInterval(pollTimer);
+              if (progressInterval) clearInterval(progressInterval);
+              const errMsg = job.error || job.error_message || "unknown";
+              console.error("작업 실패:", errMsg);
+              alert(`분석 실패: ${errMsg}`);
+              return;
+            }
+
+            // ✅ 완료: /results 호출해서 presigned URL 받기
+            if (job.status === "DONE") {
+              const res2 = await fetch(resultsUrl);
+              if (!res2.ok) {
+                // DONE인데 results가 아직 준비 안 됐으면 잠깐 더 기다림(드물게 발생)
+                console.log("DONE but results not ready:", res2.status);
+                return;
+              }
+
+              const results = await res2.json(); // { job_id, status, urls: {...} }
+              const urls = results.urls || {};
+
+              clearInterval(pollTimer);
+              if (progressInterval) clearInterval(progressInterval);
+
+              const bar = document.getElementById('progress-bar');
+              if (bar) bar.style.width = '100%';
+
+              // (선택) 분석 JSON이 있으면 읽어서 bpm/energy 등 채우기
+              let analysis = {};
+              if (urls.json) {
                 try {
-                    const response = await fetch(pollUrl);
-                    
-                    if (response.status === 200) {
-                        const result = await response.json();
-                        
-                        // WAS 상태 체크 (처리 중이면 대기)
-                        if (result.status === "PROCESSING" || result.status === "PENDING") {
-                            console.log("WAS가 열심히 분석 중입니다...");
-                            return;
-                        }
-
-                        console.log("🎉 분석 및 파일 준비 완료!");
-                        
-                        clearInterval(pollTimer);
-                        clearInterval(progressInterval);
-                        document.getElementById('progress-bar').style.width = '100%';
-
-                        // 테마 페이지용 데이터 평탄화 매핑
-                        const analysis = result.analysis_result || {};
-                        const files = result.files || {};
-
-                        const finalData = {
-                            bpm: analysis.bpm || 120,
-                            energy: analysis.energy_score || analysis.energy || 50,
-                            brightness: analysis.brightness_score || analysis.brightness || 50,
-                            topGenre: (analysis.genres && analysis.genres.length > 0) ? analysis.genres[0] : "Unknown",
-                            probability: analysis.probability || 100,
-                            audioUrl: files.audio_url || `${pollUrl}/audio`,
-                            videoUrl: files.video_url || `${pollUrl}/video`,
-                            userPrompt: promptText,
-                            version: version
-                        };
-
-                        console.log("넘겨줄 최종 데이터:", finalData);
-
-                        localStorage.setItem('visualData', JSON.stringify(finalData));
-                        setTimeout(() => { window.location.href = selectedTheme; }, 500);
-                        
-                    } else if (response.status === 404) {
-                        console.log("작업을 찾는 중... (아직 생성되지 않음)");
-                    } else {
-                        console.log("결과 대기 중... (Status:", response.status, ")");
-                    }
-                } catch (error) {
-                    console.error("WAS 확인 중 에러:", error);
+                  const aj = await fetch(urls.json);
+                  if (aj.ok) analysis = await aj.json();
+                } catch (e) {
+                  console.warn("analysis json fetch failed:", e);
                 }
-            }, 3000); 
-        }
+              }
+
+              // ✅ 테마 페이지에서 쓰는 형태로 저장
+              const finalData = {
+                bpm: analysis.bpm || 120,
+                energy: analysis.energy_score || analysis.energy || 50,
+                brightness: analysis.brightness_score || analysis.brightness || 50,
+                topGenre: (analysis.genres && analysis.genres.length > 0) ? analysis.genres[0] : "Unknown",
+                probability: analysis.probability || 100,
+
+                // ✅ 핵심: 결과 영상 (video 테마)
+                videoUrl: urls.mp4 || null,
+
+                // ✅ (권장) 업로드 음원 presign (studio/sunset 테마)
+                // 백엔드가 /results에서 urls.audio 를 주도록 확장되어 있으면 그대로 동작
+                audioUrl: urls.audio || null,
+
+                userPrompt: (promptText || "").trim(),
+                version: version
+              };
+
+              console.log("넘겨줄 최종 데이터:", finalData);
+
+              localStorage.setItem('visualData', JSON.stringify(finalData));
+              setTimeout(() => { window.location.href = selectedTheme; }, 300);
+            }
+
+          } catch (error) {
+            console.error("WAS 확인 중 에러:", error);
+          }
+        }, 3000);
+      }
     </script>
 </body>
 </html>
