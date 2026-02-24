@@ -387,15 +387,18 @@
     </script>
 
     <script>
-        // 1. WAS 주소 설정 (전달받은 IP로 변경)
+        // 1. WAS 주소 설정
         const WAS_API_URL = '/api/jobs';
         let progressInterval = null;
 
         function toggleSubOptions() {
             const selectedTheme = document.querySelector('input[name="theme"]:checked').value;
             const subSection = document.getElementById('sub-style-section');
-            if (selectedTheme === 'theme_video.html') subSection.style.display = 'block';
-            else subSection.style.display = 'none';
+            if (selectedTheme === 'theme_video.html') {
+                subSection.style.display = 'block';
+            } else {
+                subSection.style.display = 'none';
+            }
         }
 
         window.addEventListener('load', function() {
@@ -408,7 +411,10 @@
             event.preventDefault(); 
             const fileInput = document.getElementById('fileInput'); 
             const file = fileInput.files[0];
-            if (!file) { alert("파일을 선택해주세요."); return; }
+            if (!file) { 
+                alert("파일을 선택해주세요."); 
+                return; 
+            }
 
             document.body.style.overflow = 'hidden';
             document.getElementById('loading-section').style.display = 'flex'; 
@@ -422,11 +428,14 @@
             let width = 0;
             if(progressInterval) clearInterval(progressInterval);
             progressInterval = setInterval(() => {
-                if (width < 90) { width += 0.2; if(bar) bar.style.width = width + '%'; }
+                if (width < 90) { 
+                    width += 0.2; 
+                    if(bar) bar.style.width = width + '%'; 
+                }
             }, 100);
         }
 
-        // [1단계] WAS에 파일 업로드 (key=file)
+        // [1단계] WAS에 파일 업로드
         async function fetchAndStart(file) { 
             try { 
                 console.log("1. WAS 서버로 파일 전송 중...");
@@ -445,7 +454,9 @@
                 let promptText = "";
                 if (version === "3") {
                     promptText = document.getElementById('video-prompt').value;
-                    if (promptText.trim() !== "") formData.append("user_request", promptText);
+                    if (promptText.trim() !== "") {
+                        formData.append("user_request", promptText);
+                    }
                 }
 
                 const res = await fetch(WAS_API_URL, {
@@ -462,11 +473,10 @@
 
                 console.log(`접수 완료! 작업 ID: ${jobId}`);
                 
-                // 2단계: WAS 결과 수신 대기 (Polling)
+                // 2단계: WAS 결과 수신 대기
                 pollWasForResult(jobId, selectedTheme, promptText, version);
 
             } catch (e) {
-                // ★ [수정됨] alert 창과 reload를 막고, 콘솔에 에러를 자세히 찍어줍니다.
                 console.error("================================");
                 console.error("🚨 통신 에러 발생!");
                 console.error(e);
@@ -474,60 +484,88 @@
             } 
         }
 
-        // [2단계] WAS 폴링 (JSON + 파일 통합 수신)
+        // [2단계] WAS 폴링
         function pollWasForResult(jobId, selectedTheme, promptText, version) {
             const pollUrl = `${WAS_API_URL}/${jobId}`;
+            const resultsUrl = `${pollUrl}/results`;
             console.log("2. WAS 결과 대기 중...", pollUrl);
-            
+
             const pollTimer = setInterval(async () => {
                 try {
                     const response = await fetch(pollUrl);
-                    
-                    if (response.status === 200) {
-                        const result = await response.json();
-                        
-                        // WAS 상태 체크 (처리 중이면 대기)
-                        if (result.status === "PROCESSING" || result.status === "PENDING") {
-                            console.log("WAS가 열심히 분석 중입니다...");
+
+                    if (response.status === 404) {
+                        console.log("작업을 찾는 중... (아직 생성되지 않음)");
+                        return;
+                    }
+                    if (!response.ok) {
+                        console.log("결과 대기 중... (Status:", response.status, ")");
+                        return;
+                    }
+
+                    const job = await response.json();
+
+                    // 진행중 상태
+                    if (job.status === "PENDING" || job.status === "QUEUED" || job.status === "PROCESSING") {
+                        console.log("진행중:", job.status);
+                        return;
+                    }
+
+                    // 실패
+                    if (job.status === "FAIL") {
+                        clearInterval(pollTimer);
+                        clearInterval(progressInterval);
+                        alert(`분석 실패: ${job.error || job.error_message || "unknown"}`);
+                        return;
+                    }
+
+                    // 완료
+                    if (job.status === "DONE") {
+                        const r2 = await fetch(resultsUrl);
+                        if (!r2.ok) {
+                            console.log("DONE but results not ready:", r2.status);
                             return;
                         }
 
-                        console.log("🎉 분석 및 파일 준비 완료!");
-                        
+                        const results = await r2.json();
+                        const urls = results.urls || {};
+
                         clearInterval(pollTimer);
                         clearInterval(progressInterval);
                         document.getElementById('progress-bar').style.width = '100%';
 
-                        // 테마 페이지용 데이터 평탄화 매핑
-                        const analysis = result.analysis_result || {};
-                        const files = result.files || {};
+                        // 분석 JSON이 있으면 가져오기
+                        let analysis = {};
+                        if (urls.json) {
+                            try {
+                                const aj = await fetch(urls.json);
+                                if (aj.ok) analysis = await aj.json();
+                            } catch (e) {
+                                console.warn("analysis json fetch failed:", e);
+                            }
+                        }
 
+                        // 로컬 스토리지에 저장할 최종 데이터 조합
                         const finalData = {
                             bpm: analysis.bpm || 120,
                             energy: analysis.energy_score || analysis.energy || 50,
                             brightness: analysis.brightness_score || analysis.brightness || 50,
                             topGenre: (analysis.genres && analysis.genres.length > 0) ? analysis.genres[0] : "Unknown",
                             probability: analysis.probability || 100,
-                            audioUrl: files.audio_url || `${pollUrl}/audio`,
-                            videoUrl: files.video_url || `${pollUrl}/video`,
-                            userPrompt: promptText,
+                            videoUrl: urls.mp4 || null, 
+                            audioUrl: urls.audio || null,
+                            userPrompt: (promptText || "").trim(),
                             version: version
                         };
 
-                        console.log("넘겨줄 최종 데이터:", finalData);
-
                         localStorage.setItem('visualData', JSON.stringify(finalData));
-                        setTimeout(() => { window.location.href = selectedTheme; }, 500);
-                        
-                    } else if (response.status === 404) {
-                        console.log("작업을 찾는 중... (아직 생성되지 않음)");
-                    } else {
-                        console.log("결과 대기 중... (Status:", response.status, ")");
+                        setTimeout(() => { window.location.href = selectedTheme; }, 300);
                     }
+
                 } catch (error) {
                     console.error("WAS 확인 중 에러:", error);
                 }
-            }, 3000); 
+            }, 3000);
         }
     </script>
 </body>
