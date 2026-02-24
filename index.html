@@ -545,18 +545,20 @@
                             }
                         }
 
-                        // 로컬 스토리지에 저장할 최종 데이터 조합
+                        // ★ [수정 완료] 요청하신 JSON 구조에 맞추어 평탄화 맵핑
                         const finalData = {
-                            bpm: analysis.bpm || 120,
-                            energy: analysis.energy_score || analysis.energy || 50,
-                            brightness: analysis.brightness_score || analysis.brightness || 50,
-                            topGenre: (analysis.genres && analysis.genres.length > 0) ? analysis.genres[0] : "Unknown",
-                            probability: analysis.probability || 100,
+                            bpm: analysis.basic_metrics.bpm || 120,
+                            energy: analysis.mood_and_vibe.energy_score || 50,
+                            brightness: analysis.mood_and_vibe.brightness_score || 50,
+                            topGenre: analysis.ai_top_predictions[0].label || "Unknown",
+                            probability: analysis.ai_top_predictions[0].probability || 100,
                             videoUrl: urls.mp4 || null, 
                             audioUrl: urls.audio || null,
                             userPrompt: (promptText || "").trim(),
                             version: version
                         };
+
+                        console.log("✅ 전달될 최종 데이터:", finalData);
 
                         localStorage.setItem('visualData', JSON.stringify(finalData));
                         setTimeout(() => { window.location.href = selectedTheme; }, 300);
